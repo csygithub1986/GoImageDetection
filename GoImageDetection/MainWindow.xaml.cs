@@ -36,6 +36,14 @@ namespace GoImageDetection
         int maxRadius = 60;
 
         double lineDp = 2;
+        double lineAngleReso = 180;
+        int lineThreshold = 50;
+        double lineMinLen = 50;
+        double lineMaxGap = 10;
+
+        double cannyThresh1 = 100;
+        double cannyThresh2 = 50;
+        bool cannyI2Gradient = false;
 
 
         public MainWindow()
@@ -49,6 +57,15 @@ namespace GoImageDetection
             txtMinCir.Text = minRadius.ToString();
             txtMaxCir.Text = maxRadius.ToString();
             txtLineDp.Text = lineDp.ToString();
+
+            txtLineDp.Text = lineDp.ToString();
+            txtLineAngleReso.Text = lineAngleReso.ToString();
+            txtLineThresh.Text = lineThreshold.ToString();
+            txtLineMinLen.Text = lineMinLen.ToString();
+            txtLineMaxGap.Text = lineMaxGap.ToString();
+            txtCannyThresh1.Text = cannyThresh1.ToString();
+            txtCannyThresh2.Text = cannyThresh2.ToString();
+            txtCannyGradient.Text = cannyI2Gradient.ToString();
         }
 
         private void BtnReDetect_Click(object sender, RoutedEventArgs e)
@@ -60,6 +77,15 @@ namespace GoImageDetection
             minRadius = int.Parse(txtMinCir.Text.Trim());
             maxRadius = int.Parse(txtMaxCir.Text.Trim());
             lineDp = double.Parse(txtLineDp.Text.Trim());
+
+            lineDp = double.Parse(txtLineDp.Text.Trim());
+            lineAngleReso = double.Parse(txtLineAngleReso.Text.Trim());
+            lineThreshold = int.Parse(txtLineThresh.Text.Trim());
+            lineMinLen = double.Parse(txtLineMinLen.Text.Trim());
+            lineMaxGap = double.Parse(txtLineMaxGap.Text.Trim());
+            cannyThresh1 = double.Parse(txtCannyThresh1.Text.Trim());
+            cannyThresh2 = double.Parse(txtCannyThresh2.Text.Trim());
+            cannyI2Gradient = bool.Parse(txtCannyGradient.Text.Trim());
 
             PerformShapeDetection();
         }
@@ -101,17 +127,16 @@ namespace GoImageDetection
 
                     #region Canny and edge detection
                     watch.Reset(); watch.Start();
-                    double cannyThresholdLinking = cannyThreshold / 2;// 30;
                     UMat cannyEdges = new UMat();
-                    CvInvoke.Canny(uimage, cannyEdges, cannyThreshold, cannyThresholdLinking);
+                    CvInvoke.Canny(uimage, cannyEdges, cannyThresh1, cannyThresh2, 3, cannyI2Gradient);
 
                     LineSegment2D[] lines = CvInvoke.HoughLinesP(
                        cannyEdges,
                        lineDp, //Distance resolution in pixel-related units
-                       Math.PI / 720, //Angle resolution measured in radians.
-                       50, //threshold
-                       50, //min Line width
-                       20); //gap between lines
+                       Math.PI / lineAngleReso, //Angle resolution measured in radians.
+                       lineThreshold, //threshold
+                       lineMinLen, //min Line width
+                       lineMaxGap); //gap between lines
 
                     watch.Stop();
                     msgBuilder.Append(String.Format("Canny & Hough lines - {0} ms; ", watch.ElapsedMilliseconds));
@@ -141,13 +166,14 @@ namespace GoImageDetection
                     int index = 0;
                     foreach (LineSegment2D line in lines)
                     {
-                        if (index> colors.Length-1)
+                        if (index > colors.Length - 1)
                         {
                             index = 0;
                         }
                         CvInvoke.Line(circleImage, line.P1, line.P2, new Bgr(colors[index++]).MCvScalar, 2);
                     }
 
+                    txtLineCount.Text = "LineCount: " + lines.Length;
                     imageOrigin.Image = cannyEdges;
                     imageResult.Image = circleImage;
                     #endregion

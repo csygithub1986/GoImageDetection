@@ -44,10 +44,12 @@ namespace GoImageDetection.Core
 
             Circles = DetectCircle(uimage, boardSize);
 
-            List<LineSegment2D> horizontalLines;
-            List<LineSegment2D> verticalLines;
-            DetectLine(uimage, boardSize, out horizontalLines, out verticalLines);
-            CrossPoints = CalculateCross(horizontalLines, verticalLines);
+            //List<LineSegment2D> horizontalLines;
+            //List<LineSegment2D> verticalLines;
+            //DetectLine(uimage, boardSize, out horizontalLines, out verticalLines);
+            //CrossPoints = CalculateCross(horizontalLines, verticalLines);
+
+            CrossPoints = FindCross(uimage.GetMat(AccessType.Read));
 
             return null;
         }
@@ -191,7 +193,7 @@ namespace GoImageDetection.Core
         /// <param name="lineSecondStar">L2的点1坐标</param>
         /// <param name="lineSecondEnd">L2的点2坐标</param>
         /// <returns></returns>
-        public static PointF GetIntersection(PointF lineFirstStar, PointF lineFirstEnd, PointF lineSecondStar, PointF lineSecondEnd)
+        public PointF GetIntersection(PointF lineFirstStar, PointF lineFirstEnd, PointF lineSecondStar, PointF lineSecondEnd)
         {
             /*
              * L1，L2都存在斜率的情况：
@@ -298,6 +300,73 @@ namespace GoImageDetection.Core
             {
                 return 0;
             }
+        }
+
+
+
+        private List<Point> FindCross(Mat uimage)
+        {
+            List<Point> crossList = new List<Point>();
+            //TODO:跳过一些不用查找的点
+            //因为使用边缘来处理，所以不管线宽是多少，这里统一用一边为3*12像素的十字来处理
+            for (int i = 12; i < uimage.Width - 12; i++)
+            {
+                for (int j = 12; j < uimage.Height - 12; j++)
+                {
+                    if (uimage.GetData(new int[] { i + j * uimage.Width })[0] == 255)
+                    {
+                        if (IsCross(uimage, i, j))
+                        {
+                            crossList.Add(new Point(i, j));
+                        }
+                    }
+                }
+            }
+            return crossList;
+        }
+
+        private bool IsCross(Mat uimage, int x, int y)
+        {
+            //因为使用边缘来处理，所以不管线宽是多少，这里统一用一边为3*12像素的十字来处理
+            int[] indices = new int[3 * (22 + 22 + 3)];//141
+            int index = 0;
+            //横排
+            for (int i = -12; i <= 12; i++)
+            {
+                for (int j = -1; j <= 1; j++)
+                {
+                    indices[index++] = x + i + (y + j) * uimage.Width;
+                }
+            }
+            //竖排
+            for (int i = -1; i <= 1; i++)
+            {
+                for (int j = -12; j <= 12; j++)
+                {
+                    if (j >= -1 && j <= 1) { continue; }
+                    indices[index++] = x + i + (y + j) * uimage.Width;
+                }
+            }
+            byte[] data = uimage.GetData(indices);
+
+            int whiteCount = data.Count(b => b == 255);
+            //达到百分之20，即通过
+            bool hasHoriAndVerti = whiteCount > data.Length * 0.2;
+
+
+            //计算45度斜边 1*12
+            int[] indices45 = new int[12 * 4];//48
+            int index45 = 0;
+            for (int i = -12; i <= 12; i++)
+            {
+                indices45[index45++] = x + i + (y + i) * uimage.Width;
+                indices45[index45++] = x + i + (y - i) * uimage.Width;
+            }
+            byte[] data45 = uimage.GetData(indices45);
+            //小于10通过
+            int blackCount = data.Count(b => b == 0);
+            bool not45 = blackCount < data45.Length * 0.1;
+            return hasHoriAndVerti && not45;
         }
     }
 }

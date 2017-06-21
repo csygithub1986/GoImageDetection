@@ -6,10 +6,10 @@
         xmlns:local="clr-namespace:GoImageDetection"
         xmlns:emgu="clr-namespace:Emgu.CV.UI;assembly=Emgu.CV.UI"
         mc:Ignorable="d"
-        Title="MainWindow" Height="600" Width="1200">
+        Title="MainWindow" Height="600" Width="1366">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="120"/>
+            <RowDefinition Height="160"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <TabControl x:Name="tabControl" Grid.Row="1">
@@ -56,25 +56,48 @@
                 </Grid>
             </TabItem>
         </TabControl>
-        <TextBox x:Name="fileNameTextBox" HorizontalAlignment="Left" Height="23" Margin="78,8,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="256"/>
-        <TextBlock x:Name="textBlock" HorizontalAlignment="Left" Margin="33,12,0,0" TextWrapping="Wrap" Text="文件" VerticalAlignment="Top"/>
-        <Button x:Name="button" Click="BtnOpenFile_Click" Content="......" HorizontalAlignment="Left" Margin="353,10,0,0" VerticalAlignment="Top" Width="46"/>
-        <TextBlock x:Name="textBlock1" HorizontalAlignment="Left" Margin="500,15,0,0" TextWrapping="Wrap" Text="dp" VerticalAlignment="Top" Height="15" RenderTransformOrigin="28.156,-2.356"/>
-        <TextBlock x:Name="textBlock1_Copy" HorizontalAlignment="Left" Margin="500,50,0,0" TextWrapping="Wrap" Text="Canny" VerticalAlignment="Top" Height="15"/>
-        <TextBlock x:Name="textBlock1_Copy1" HorizontalAlignment="Left" Margin="500,82,0,0" TextWrapping="Wrap" Text="AccThr" VerticalAlignment="Top"/>
-        <TextBlock x:Name="textBlock1_Copy2" HorizontalAlignment="Left" Margin="714,15,0,0" TextWrapping="Wrap" Text="MinDist" VerticalAlignment="Top"/>
-        <TextBlock x:Name="textBlock1_Copy3" HorizontalAlignment="Left" Margin="714,47,0,0" TextWrapping="Wrap" Text="MinCir" VerticalAlignment="Top"/>
-        <TextBlock x:Name="textBlock1_Copy4" HorizontalAlignment="Left" Margin="714,79,0,0" TextWrapping="Wrap" Text="MaxCir" VerticalAlignment="Top"/>
-        <TextBox x:Name="txtDp" HorizontalAlignment="Left" Height="23" Margin="560,11,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
-        <TextBox x:Name="txtCanny" HorizontalAlignment="Left" Height="23" Margin="560,46,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
-        <TextBox x:Name="txtAccThr" HorizontalAlignment="Left" Height="23" Margin="560,78,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
-        <TextBox x:Name="txtMinDist" HorizontalAlignment="Left" Height="23" Margin="779,11,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
-        <TextBox x:Name="txtMinCir" HorizontalAlignment="Left" Height="23" Margin="779,46,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
-        <TextBox x:Name="txtMaxCir" HorizontalAlignment="Left" Height="23" Margin="779,78,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
-        <Button IsEnabled="True" x:Name="button1" Click="BtnReDetect_Click" Content="检测" HorizontalAlignment="Left" Margin="929,11,0,0" VerticalAlignment="Top" Width="75" Height="64"/>
-        <Button x:Name="button1_Copy" Click="BtnReDetect_Click2" Content="检测2" HorizontalAlignment="Left" Margin="1020,11,0,0" VerticalAlignment="Top" Width="75" Height="64"/>
-        <TextBlock x:Name="textBlock1_Copy5" HorizontalAlignment="Left" Margin="500,112,0,0" TextWrapping="Wrap" Text="AccThr" VerticalAlignment="Top" Grid.RowSpan="2"/>
-        <TextBox x:Name="txtLineDp" HorizontalAlignment="Left" Height="23" Margin="560,108,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120" Grid.RowSpan="2"/>
+        <TextBox x:Name="fileNameTextBox" HorizontalAlignment="Left" Height="23" Margin="58,8,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="220"/>
+        <TextBlock x:Name="textBlock" HorizontalAlignment="Left" Margin="21,12,0,0" TextWrapping="Wrap" Text="文件" VerticalAlignment="Top"/>
+        <Button x:Name="button" Click="BtnOpenFile_Click" Content="......" HorizontalAlignment="Left" Margin="297,10,0,0" VerticalAlignment="Top" Width="46"/>
+        <GroupBox Header="Circle" HorizontalAlignment="Left" Height="160" Margin="377,0,0,0" VerticalAlignment="Top" Width="423">
+            <Grid>
+                <TextBlock x:Name="textBlock1" HorizontalAlignment="Left" Margin="9,12,0,0" TextWrapping="Wrap" Text="dp" VerticalAlignment="Top" Height="15" RenderTransformOrigin="28.156,-2.356"/>
+                <TextBlock x:Name="textBlock1_Copy" HorizontalAlignment="Left" Margin="9,47,0,0" TextWrapping="Wrap" Text="Canny" VerticalAlignment="Top" Height="15"/>
+                <TextBlock x:Name="textBlock1_Copy1" HorizontalAlignment="Left" Margin="9,79,0,0" TextWrapping="Wrap" Text="AccThr" VerticalAlignment="Top"/>
+                <TextBlock x:Name="textBlock1_Copy2" HorizontalAlignment="Left" Margin="223,12,0,0" TextWrapping="Wrap" Text="MinDist" VerticalAlignment="Top"/>
+                <TextBlock x:Name="textBlock1_Copy3" HorizontalAlignment="Left" Margin="223,44,0,0" TextWrapping="Wrap" Text="MinCir" VerticalAlignment="Top"/>
+                <TextBlock x:Name="textBlock1_Copy4" HorizontalAlignment="Left" Margin="223,76,0,0" TextWrapping="Wrap" Text="MaxCir" VerticalAlignment="Top"/>
+                <TextBox x:Name="txtDp" HorizontalAlignment="Left" Height="23" Margin="69,8,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+                <TextBox x:Name="txtCanny" HorizontalAlignment="Left" Height="23" Margin="69,43,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+                <TextBox x:Name="txtAccThr" HorizontalAlignment="Left" Height="23" Margin="69,75,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+                <TextBox x:Name="txtMinDist" HorizontalAlignment="Left" Height="23" Margin="288,8,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+                <TextBox x:Name="txtMinCir" HorizontalAlignment="Left" Height="23" Margin="288,43,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+                <TextBox x:Name="txtMaxCir" HorizontalAlignment="Left" Height="23" Margin="288,75,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+            </Grid>
+        </GroupBox>
+        <Button IsEnabled="True" x:Name="button1" Click="BtnReDetect_Click" Content="试验" HorizontalAlignment="Left" Margin="72,45,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
+        <Button x:Name="button1_Copy" Click="BtnReDetect_Click2" Content="正式检测" HorizontalAlignment="Left" Margin="175,45,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
 
+        <GroupBox Header="Line" HorizontalAlignment="Left" Height="160" Margin="823,0,0,0" VerticalAlignment="Top" Width="472">
+            <Grid>
+                <TextBlock HorizontalAlignment="Left" Margin="9,12,0,0" TextWrapping="Wrap" Text="dp" VerticalAlignment="Top" Height="15" RenderTransformOrigin="28.156,-2.356"/>
+                <TextBlock HorizontalAlignment="Left" Margin="9,47,0,0" TextWrapping="Wrap" Text="AngleReso" VerticalAlignment="Top" Height="15"/>
+                <TextBlock  HorizontalAlignment="Left" Margin="9,79,0,0" TextWrapping="Wrap" Text="Thresh" VerticalAlignment="Top"/>
+                <TextBlock  HorizontalAlignment="Left" Margin="223,12,0,0" TextWrapping="Wrap" Text="MinLen" VerticalAlignment="Top"/>
+                <TextBlock  HorizontalAlignment="Left" Margin="223,44,0,0" TextWrapping="Wrap" Text="MaxGap" VerticalAlignment="Top"/>
+                <TextBlock  HorizontalAlignment="Left" Margin="223,79,0,0" TextWrapping="Wrap" Text="CannyThresh1" VerticalAlignment="Top"/>
+                <TextBlock HorizontalAlignment="Left" Margin="223,109,0,0" TextWrapping="Wrap" Text="CannyThresh2" VerticalAlignment="Top"/>
+                <TextBlock HorizontalAlignment="Left" Margin="10,112,0,0" TextWrapping="Wrap" Text="gradient" VerticalAlignment="Top"/>
+                <TextBox x:Name="txtLineDp" HorizontalAlignment="Left" Height="23" Margin="75,8,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+                <TextBox x:Name="txtLineAngleReso" HorizontalAlignment="Left" Height="23" Margin="75,43,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+                <TextBox x:Name="txtLineThresh" HorizontalAlignment="Left" Height="23" Margin="75,75,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+                <TextBox x:Name="txtLineMinLen" HorizontalAlignment="Left" Height="23" Margin="309,8,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+                <TextBox x:Name="txtLineMaxGap" HorizontalAlignment="Left" Height="23" Margin="309,43,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+                <TextBox x:Name="txtCannyThresh1" HorizontalAlignment="Left" Height="23" Margin="309,75,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+                <TextBox x:Name="txtCannyThresh2" HorizontalAlignment="Left" Height="23" Margin="309,105,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+                <TextBox x:Name="txtCannyGradient" HorizontalAlignment="Left" Height="23" Margin="75,105,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+            </Grid>
+        </GroupBox>
+        <TextBlock x:Name="txtLineCount" HorizontalAlignment="Left" Margin="21,101,0,0" TextWrapping="Wrap" Text="" VerticalAlignment="Top"/>
     </Grid>
 </Window>
