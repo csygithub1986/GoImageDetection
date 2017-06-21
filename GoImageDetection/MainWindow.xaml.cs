@@ -212,7 +212,12 @@ namespace GoImageDetection
             {
                 CvInvoke.Circle(circleImage, cross, 2, new Bgr(System.Drawing.Color.Green).MCvScalar, 2);
             }
-            imageOrigin.Image = img;
+
+            UMat cannyEdges = new UMat();
+            //第三、四个参数分别为边缘检测阈值和连接阈值（大于第一个作为边界，小于第二个舍弃，介于之间时看该点是否连接着其他边界点）
+            CvInvoke.Canny(img, cannyEdges, cannyThreshold, cannyThreshold * 0.8);
+
+            imageOrigin.Image = cannyEdges;
             imageResult.Image = circleImage;
         }
     }

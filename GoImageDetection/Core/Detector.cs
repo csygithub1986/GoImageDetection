@@ -49,7 +49,10 @@ namespace GoImageDetection.Core
             //DetectLine(uimage, boardSize, out horizontalLines, out verticalLines);
             //CrossPoints = CalculateCross(horizontalLines, verticalLines);
 
-            CrossPoints = FindCross(uimage.GetMat(AccessType.Read));
+            UMat cannyEdges = new UMat();
+            //第三、四个参数分别为边缘检测阈值和连接阈值（大于第一个作为边界，小于第二个舍弃，介于之间时看该点是否连接着其他边界点）
+            CvInvoke.Canny(uimage, cannyEdges, cannyThreshold, cannyThreshold * 0.8);
+            CrossPoints = FindCross(cannyEdges.GetMat(AccessType.Read));
 
             return null;
         }
@@ -309,15 +312,15 @@ namespace GoImageDetection.Core
             List<Point> crossList = new List<Point>();
             //TODO:跳过一些不用查找的点
             //因为使用边缘来处理，所以不管线宽是多少，这里统一用一边为3*12像素的十字来处理
-            for (int i = 12; i < uimage.Width - 12; i++)
+            for (int i = 12; i < uimage.Height - 12; i++)
             {
-                for (int j = 12; j < uimage.Height - 12; j++)
+                for (int j = 12; j < uimage.Width - 12; j++)
                 {
-                    if (uimage.GetData(new int[] { i + j * uimage.Width })[0] == 255)
+                    if (uimage.GetData(new int[] { i, j })[0] == 255)
                     {
                         if (IsCross(uimage, i, j))
                         {
-                            crossList.Add(new Point(i, j));
+                            crossList.Add(new Point(j, i));
                         }
                     }
                 }
@@ -327,46 +330,127 @@ namespace GoImageDetection.Core
 
         private bool IsCross(Mat uimage, int x, int y)
         {
+            try
+            {
+                //因为使用边缘来处理，所以不管线宽是多少，这里统一用一边为3*12像素的十字来处理
+                byte[] whiteBytes = new byte[3 * (22 + 22 + 3)];//141
+                int index = 0;
+                //横排
+                for (int i = -12; i <= 12; i++)
+                {
+                    for (int j = -1; j <= 1; j++)
+                    {
+                        whiteBytes[index++] = uimage.GetData(new int[] { x + i, y + j })[0];
+                    }
+                }
+                //竖排
+                for (int i = -1; i <= 1; i++)
+                {
+                    for (int j = -12; j <= 12; j++)
+                    {
+                        if (j >= -1 && j <= 1) { continue; }
+                        whiteBytes[index++] = uimage.GetData(new int[] { x + i, y + j })[0];
+                    }
+                }
+                int whiteCount = whiteBytes.Count(b => b == 255);
+                //达到百分之30，即通过
+                bool hasHoriAndVerti = whiteCount > whiteBytes.Length * 0.3;
+
+
+                //计算45度斜边 1*12
+                byte[] blackBytes = new byte[12 * 4];//48
+                int index45 = 0;
+                for (int i = -12; i <= 12; i++)
+                {
+                    if (i == 0) continue;
+                    blackBytes[index45++] = uimage.GetData(new int[] { x + i, y + i })[0];
+                    blackBytes[index45++] = uimage.GetData(new int[] { x + i, y - i })[0];
+                }
+                //大于92%通过
+                int blackCount = blackBytes.Count(b => b == 0);
+                bool not45 = blackCount > blackBytes.Length * 0.92;
+                return hasHoriAndVerti && not45;
+            }
+            catch (Exception ex)
+            {
+
+                throw ex;
+            }
+        }
+
+
+
+        private List<Point> FindCross(UMat uimage)
+        {
+            byte[] imageBytes = uimage.Bytes;
+            List<Point> crossList = new List<Point>();
+            //TODO:跳过一些不用查找的点
             //因为使用边缘来处理，所以不管线宽是多少，这里统一用一边为3*12像素的十字来处理
-            int[] indices = new int[3 * (22 + 22 + 3)];//141
-            int index = 0;
-            //横排
-            for (int i = -12; i <= 12; i++)
+            for (int i = 12; i < uimage.Cols - 12; i++)
             {
-                for (int j = -1; j <= 1; j++)
+                for (int j = 12; j < uimage.Rows - 12; j++)
                 {
-                    indices[index++] = x + i + (y + j) * uimage.Width;
+                    if (imageBytes[i + j * uimage.Rows] == 255)
+                    {
+                        if (IsCross(uimage, i, j))
+                        {
+                            crossList.Add(new Point(j, i));
+                        }
+                    }
                 }
             }
-            //竖排
-            for (int i = -1; i <= 1; i++)
+            return crossList;
+        }
+
+        private bool IsCross(UMat uimage, int x, int y)
+        {
+            try
             {
-                for (int j = -12; j <= 12; j++)
+                byte[] imageBytes = uimage.Bytes;
+                //因为使用边缘来处理，所以不管线宽是多少，这里统一用一边为3*12像素的十字来处理
+                byte[] whiteBytes = new byte[3 * (22 + 22 + 3)];//141
+                int index = 0;
+                //横排
+                for (int i = -12; i <= 12; i++)
                 {
-                    if (j >= -1 && j <= 1) { continue; }
-                    indices[index++] = x + i + (y + j) * uimage.Width;
+                    for (int j = -1; j <= 1; j++)
+                    {
+                        whiteBytes[index++] = imageBytes[x + i + (y + j) * uimage.Rows];
+                    }
                 }
+                //竖排
+                for (int i = -1; i <= 1; i++)
+                {
+                    for (int j = -12; j <= 12; j++)
+                    {
+                        if (j >= -1 && j <= 1) { continue; }
+                        whiteBytes[index++] = imageBytes[x + i + (y + j) * uimage.Rows];
+                    }
+                }
+                int whiteCount = whiteBytes.Count(b => b == 255);
+                //达到百分之30，即通过
+                bool hasHoriAndVerti = whiteCount > whiteBytes.Length * 0.3;
+
+
+                //计算45度斜边 1*12
+                byte[] blackBytes = new byte[12 * 4];//48
+                int index45 = 0;
+                for (int i = -12; i <= 12; i++)
+                {
+                    if (i == 0) continue;
+                    blackBytes[index45++] = imageBytes[x + i + (y + i) * uimage.Rows];
+                    blackBytes[index45++] = imageBytes[x + i + (y - i) * uimage.Rows];
+                }
+                //大于92%通过
+                int blackCount = blackBytes.Count(b => b == 0);
+                bool not45 = blackCount > blackBytes.Length * 0.92;
+                return hasHoriAndVerti && not45;
             }
-            byte[] data = uimage.GetData(indices);
-
-            int whiteCount = data.Count(b => b == 255);
-            //达到百分之20，即通过
-            bool hasHoriAndVerti = whiteCount > data.Length * 0.2;
-
-
-            //计算45度斜边 1*12
-            int[] indices45 = new int[12 * 4];//48
-            int index45 = 0;
-            for (int i = -12; i <= 12; i++)
+            catch (Exception ex)
             {
-                indices45[index45++] = x + i + (y + i) * uimage.Width;
-                indices45[index45++] = x + i + (y - i) * uimage.Width;
+
+                throw ex;
             }
-            byte[] data45 = uimage.GetData(indices45);
-            //小于10通过
-            int blackCount = data.Count(b => b == 0);
-            bool not45 = blackCount < data45.Length * 0.1;
-            return hasHoriAndVerti && not45;
         }
     }
 }
