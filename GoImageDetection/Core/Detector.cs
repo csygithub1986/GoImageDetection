@@ -322,16 +322,16 @@ namespace GoImageDetection.Core
             int width = uimage.Width;
             //TODO:跳过一些不用查找的点
             //因为使用边缘来处理，所以不管线宽是多少，这里统一用一边为3*12像素的十字来处理
-            for (int i = 12; i < height - 12; i++)
+            for (int i = 12; i < width - 12; i++)
             {
-                for (int j = 12; j < width - 12; j++)
+                for (int j = 12; j < height - 12; j++)
                 {
                     if (imageBytes[i + j * height] == 255)
                     //if (uimage.GetData(new int[] { i, j })[0] == 255)
                     {
                         if (IsCross(height, imageBytes, i, j))
                         {
-                            crossList.Add(new Point(j, i));
+                            crossList.Add(new Point(i, j));
                         }
                     }
                 }
