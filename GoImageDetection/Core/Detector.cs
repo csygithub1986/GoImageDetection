@@ -28,6 +28,8 @@ namespace GoImageDetection.Core
 
         int maxGridWidth;//最大格宽
         int minGridWidth;//最小格宽
+        int crossDetectLen;//十字检测像素数
+        //int crossDetectWidth;//十字检测偏差像素数
 
         public Detector()
         {
@@ -42,6 +44,8 @@ namespace GoImageDetection.Core
             UMat uimage = InitImage(bitmap);
             maxGridWidth = uimage.Size.Width / (boardSize - 1);
             minGridWidth = (int)(uimage.Size.Width / (boardSize - 1) * minWidthRate);
+            crossDetectLen = minGridWidth / 4;
+            //crossDetectWidth = crossDetectWidth = crossDetectLen / 4;
 
             Circles = DetectCircle(uimage, boardSize);
 
@@ -53,8 +57,15 @@ namespace GoImageDetection.Core
             UMat cannyEdges = new UMat();
             //第三、四个参数分别为边缘检测阈值和连接阈值（大于第一个作为边界，小于第二个舍弃，介于之间时看该点是否连接着其他边界点）
             CvInvoke.Canny(uimage, cannyEdges, cannyThreshold, cannyThreshold * 0.8);
-            CrossPoints = FindCross(cannyEdges.GetMat(AccessType.Read));
-
+            DateTime t1 = DateTime.Now;
+            Dictionary<CrossType, List<Point>> crossDic = FindCross(cannyEdges.Bytes, cannyEdges.Cols);
+            DateTime t2 = DateTime.Now;
+            Console.WriteLine((t2 - t1).Milliseconds + " ms");
+            CrossPoints = new List<Point>();
+            foreach (var item in crossDic.Values)
+            {
+                CrossPoints.AddRange(item);
+            }
             return null;
         }
 
@@ -89,6 +100,42 @@ namespace GoImageDetection.Core
             return circles;
         }
 
+        private List<Point> CalculateCross(List<LineSegment2D> horizontalLines, List<LineSegment2D> verticalLines)
+        {
+            //去掉重复的线 TODO：这里就直接简单粗暴的认为5%内是同一根线，并取其中一根就可以，以后改进
+            List<LineSegment2D> distinctHorLines = new List<LineSegment2D>();
+            List<LineSegment2D> distinctVerLines = new List<LineSegment2D>();
+            foreach (var line in horizontalLines)
+            {
+                if (!distinctHorLines.Contains(line, new LineEqualityComparer<LineSegment2D>(minGridWidth * 0.05)))
+                {
+                    distinctHorLines.Add(line);
+                }
+            }
+            foreach (var line in verticalLines)
+            {
+                if (!distinctVerLines.Contains(line, new LineEqualityComparer<LineSegment2D>(minGridWidth * 0.05)))
+                {
+                    distinctVerLines.Add(line);
+                }
+            }
+            //计算交叉
+            List<Point> crossPointList = new List<Point>();
+            foreach (var horLine in distinctHorLines)
+            {
+                foreach (var verLine in distinctVerLines)
+                {
+                    PointF crossCenter = GetIntersection(horLine.P1, horLine.P2, verLine.P1, verLine.P2);
+                    if (!crossCenter.Equals(PointF.Empty))
+                    {
+                        crossPointList.Add(new Point((int)crossCenter.X, (int)crossCenter.Y));
+                    }
+                }
+            }
+            return crossPointList;
+        }
+
+        #region 检测直线相关方法 弃用
         /// <summary>
         /// 检测线
         /// </summary>
@@ -126,49 +173,12 @@ namespace GoImageDetection.Core
         }
 
 
-        private List<Point> CalculateCross(List<LineSegment2D> horizontalLines, List<LineSegment2D> verticalLines)
-        {
-            //去掉重复的线 TODO：这里就直接简单粗暴的认为5%内是同一根线，并取其中一根就可以，以后改进
-            List<LineSegment2D> distinctHorLines = new List<LineSegment2D>();
-            List<LineSegment2D> distinctVerLines = new List<LineSegment2D>();
-            foreach (var line in horizontalLines)
-            {
-                if (!distinctHorLines.Contains(line, new LineEqualityComparer<LineSegment2D>(minGridWidth * 0.05)))
-                {
-                    distinctHorLines.Add(line);
-                }
-            }
-            foreach (var line in verticalLines)
-            {
-                if (!distinctVerLines.Contains(line, new LineEqualityComparer<LineSegment2D>(minGridWidth * 0.05)))
-                {
-                    distinctVerLines.Add(line);
-                }
-            }
-            //计算交叉
-            List<Point> crossPointList = new List<Point>();
-            foreach (var horLine in distinctHorLines)
-            {
-                foreach (var verLine in distinctVerLines)
-                {
-                    PointF crossCenter = GetIntersection(horLine.P1, horLine.P2, verLine.P1, verLine.P2);
-                    if (!crossCenter.Equals(PointF.Empty))
-                    {
-                        crossPointList.Add(new Point((int)crossCenter.X, (int)crossCenter.Y));
-                    }
-                }
-            }
-            return crossPointList;
-        }
-
-
-        //判断两条线是否相交
-
         double determinant(double v1, double v2, double v3, double v4)  // 行列式
         {
             return (v1 * v3 - v2 * v4);
         }
 
+        //判断两条线是否相交
         bool IsIntersect(Point aP1, Point aP2, Point bP1, Point bP2)
         {
             double delta = determinant(aP2.X - aP1.X, bP1.X - bP2.X, aP2.Y - aP1.Y, bP1.Y - bP2.Y);
@@ -281,8 +291,6 @@ namespace GoImageDetection.Core
             // throw new Exception("不可能发生的情况");
             return PointF.Empty;
         }
-
-
         class LineEqualityComparer<T> : IEqualityComparer<T> where T : struct
         {
             double minDiff;//端点最小距离
@@ -305,33 +313,47 @@ namespace GoImageDetection.Core
                 return 0;
             }
         }
+        #endregion
 
-
-
-        private List<Point> FindCross(Mat uimage)
+        #region 旧检测方法
+        private List<Point> FindCross_Old(byte[] imageBytes, int width, int height)
         {
             List<Point> crossList = new List<Point>();
             //byte[] imageBytes = (byte[])uimage.Data;
 
-            IntPtr ptr = uimage.DataPointer;
-            int size = uimage.Width * uimage.Height;
-            byte[] imageBytes = new byte[size];
-            Marshal.Copy(ptr, imageBytes, 0, size);
+            //IntPtr ptr = uimage.DataPointer;
+            //int size = uimage.Width * uimage.Height;
+            //byte[] imageBytes = new byte[size];
+            //Marshal.Copy(ptr, imageBytes, 0, size);
 
-            int height = uimage.Height;
-            int width = uimage.Width;
+            //int height = uimage.Height;
+            //int width = uimage.Width;
             //TODO:跳过一些不用查找的点
             //因为使用边缘来处理，所以不管线宽是多少，这里统一用一边为3*12像素的十字来处理
             for (int i = 12; i < width - 12; i++)
             {
                 for (int j = 12; j < height - 12; j++)
                 {
-                    if (imageBytes[i + j * height] == 255)
-                    //if (uimage.GetData(new int[] { i, j })[0] == 255)
+                    if (imageBytes[i + j * width] == 255)
                     {
-                        if (IsCross(height, imageBytes, i, j))
+                        if (IsCross(width, imageBytes, i, j))
                         {
                             crossList.Add(new Point(i, j));
+                            //并将右下角的12*12设为0，避免重复检查
+                            for (int ii = 0; ii < 10; ii++)
+                            {
+                                for (int jj = 0; jj < 50; jj++)
+                                {
+                                    imageBytes[i + ii + (j + jj) * width] = 0;
+                                }
+                            }
+                            for (int ii = 10; ii < 50; ii++)
+                            {
+                                for (int jj = 0; jj < 10; jj++)
+                                {
+                                    imageBytes[i + ii + (j + jj) * width] = 0;
+                                }
+                            }
                         }
                     }
                 }
@@ -339,13 +361,12 @@ namespace GoImageDetection.Core
             return crossList;
         }
 
-        private bool IsCross(int height, byte[] imageBytes, int x, int y)
+        private bool IsCross(int width, byte[] imageBytes, int x, int y)
         {
             //IntPtr ptr = uimage.DataPointer;
             //int size = uimage.Width * uimage.Height;
             //byte[] imageBytes = new byte[size];
             //Marshal.Copy(ptr, imageBytes, 0, size);
-
             try
             {
                 //因为使用边缘来处理，所以不管线宽是多少，这里统一用一边为3*12像素的十字来处理
@@ -357,7 +378,7 @@ namespace GoImageDetection.Core
                 {
                     for (int j = -1; j <= 1; j++)
                     {
-                        whiteBytes[index++] = imageBytes[x + i + (y + j) * height];// uimage.GetData(new int[] { x + i, y + j })[0];
+                        whiteBytes[index++] = imageBytes[x + i + (y + j) * width];// uimage.GetData(new int[] { x + i, y + j })[0];
                     }
                 }
                 //竖排
@@ -366,108 +387,328 @@ namespace GoImageDetection.Core
                     for (int j = -12; j <= 12; j++)
                     {
                         if (j >= -1 && j <= 1) { continue; }
-                        whiteBytes[index++] = imageBytes[x + i + (y + j) * height];
+                        whiteBytes[index++] = imageBytes[x + i + (y + j) * width];
                     }
                 }
                 int whiteCount = whiteBytes.Count(b => b == 255);
                 //达到百分之30，即通过
                 bool hasHoriAndVerti = whiteCount > whiteBytes.Length * 0.3;
 
-
-                //计算45度斜边 1*12
-                byte[] blackBytes = new byte[12 * 4];//48
-                int index45 = 0;
-                for (int i = -12; i <= 12; i++)
-                {
-                    if (i == 0) continue;
-                    blackBytes[index45++] = imageBytes[x + i + (y + i) * height];
-                    blackBytes[index45++] = imageBytes[x + i + (y - i) * height];
-                }
-                //大于92%通过
-                int blackCount = blackBytes.Count(b => b == 0);
-                bool not45 = blackCount > blackBytes.Length * 0.92;
-                return hasHoriAndVerti && not45;
+                ////计算45度斜边 1*12
+                //byte[] blackBytes = new byte[12 * 4];//48
+                //int index45 = 0;
+                //for (int i = -12; i <= 12; i++)
+                //{
+                //    if (i == 0) continue;
+                //    blackBytes[index45++] = imageBytes[x + i + (y + i) * width];
+                //    blackBytes[index45++] = imageBytes[x + i + (y - i) * width];
+                //}
+                ////大于92%通过
+                //int blackCount = blackBytes.Count(b => b == 0);
+                //bool not45 = blackCount > blackBytes.Length * 0.92;
+                //return hasHoriAndVerti && not45;
+                return hasHoriAndVerti;
             }
             catch (Exception ex)
             {
-
                 throw ex;
             }
         }
+        #endregion
 
-
-
-        private List<Point> FindCross(UMat uimage)
+        /// <summary>
+        /// 只检测四边的T型交叉点和四角的L型交叉点
+        /// 从第一行开始扫描┌ ┐┬形状，从扫到第一个┬开始，再向下扫两个最小格宽。最多扫1/10个图形高度。
+        /// 从底排扫描└ ┘┴形状，后面同上
+        /// 从左边扫描├，从右边扫描┤，后面同理
+        /// </summary>
+        /// <param name="width"></param>
+        /// <param name="imageBytes"></param>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <returns></returns>
+        private Dictionary<CrossType, List<Point>> FindCross(byte[] imageBytes, int width)
         {
-            byte[] imageBytes = uimage.Bytes;
-            List<Point> crossList = new List<Point>();
-            //TODO:跳过一些不用查找的点
-            //因为使用边缘来处理，所以不管线宽是多少，这里统一用一边为3*12像素的十字来处理
-            for (int i = 12; i < uimage.Cols - 12; i++)
+            Dictionary<CrossType, List<Point>> crossDic = new Dictionary<CrossType, List<Point>>();
+            int height = imageBytes.Length / width;
+            int scanRowCount = imageBytes.Length / width / 7;//最多扫描的行数
+            try
             {
-                for (int j = 12; j < uimage.Rows - 12; j++)
+                //上 //TODO：优化，扫描到了以后就缩小扫描行数，或者扫描到19个了以后就结束，或者加上圆形一共有19个了就结束
+                for (int j = 0; j < scanRowCount; j++)
                 {
-                    if (imageBytes[i + j * uimage.Rows] == 255)
+                    for (int i = crossDetectLen; i < width - crossDetectLen; i++)
                     {
-                        if (IsCross(uimage, i, j))
+                        if (imageBytes[i + j * width] == 255)
                         {
-                            crossList.Add(new Point(j, i));
+                            CrossType type = GetCrossFromUp(width, imageBytes, i, j);
+                            if (type != CrossType.None)
+                            {
+                                AddPoint(crossDic, type, i, j);
+                                //    //并将之后的一片区域设为0，避免重复检查
+                                //    for (int ii = 0; ii < crossDetectLen; ii++)
+                                //    {
+                                //        for (int jj = 0; jj < crossDetectLen; jj++)
+                                //        {
+                                //            imageBytes[i + ii + (j + jj) * width] = 0;
+                                //        }
+                                //    }
+                            }
                         }
                     }
                 }
-            }
-            return crossList;
-        }
-
-        private bool IsCross(UMat uimage, int x, int y)
-        {
-            try
-            {
-                byte[] imageBytes = uimage.Bytes;
-                //因为使用边缘来处理，所以不管线宽是多少，这里统一用一边为3*12像素的十字来处理
-                byte[] whiteBytes = new byte[3 * (22 + 22 + 3)];//141
-                int index = 0;
-                //横排
-                for (int i = -12; i <= 12; i++)
+                //下
+                for (int j = height - 1; j > height - scanRowCount; j--)
                 {
-                    for (int j = -1; j <= 1; j++)
+                    for (int i = crossDetectLen; i < width - crossDetectLen; i++)
                     {
-                        whiteBytes[index++] = imageBytes[x + i + (y + j) * uimage.Rows];
+                        if (imageBytes[i + j * width] == 255)
+                        {
+                            CrossType type = GetCrossFromDown(width, imageBytes, i, j);
+                            if (type != CrossType.None)
+                                AddPoint(crossDic, type, i, j);
+                        }
                     }
                 }
-                //竖排
-                for (int i = -1; i <= 1; i++)
+                //左
+                for (int i = 0; i < scanRowCount; i++)
                 {
-                    for (int j = -12; j <= 12; j++)
+                    for (int j = crossDetectLen; j < height - crossDetectLen; j++)
                     {
-                        if (j >= -1 && j <= 1) { continue; }
-                        whiteBytes[index++] = imageBytes[x + i + (y + j) * uimage.Rows];
+                        if (imageBytes[i + j * width] == 255)
+                        {
+                            CrossType type = GetCrossFromLeft(width, imageBytes, i, j);
+                            if (type != CrossType.None)
+                                AddPoint(crossDic, type, i, j);
+                        }
                     }
                 }
-                int whiteCount = whiteBytes.Count(b => b == 255);
-                //达到百分之30，即通过
-                bool hasHoriAndVerti = whiteCount > whiteBytes.Length * 0.3;
-
-
-                //计算45度斜边 1*12
-                byte[] blackBytes = new byte[12 * 4];//48
-                int index45 = 0;
-                for (int i = -12; i <= 12; i++)
+                //右
+                for (int i = width - 1; i > width - scanRowCount; i--)
                 {
-                    if (i == 0) continue;
-                    blackBytes[index45++] = imageBytes[x + i + (y + i) * uimage.Rows];
-                    blackBytes[index45++] = imageBytes[x + i + (y - i) * uimage.Rows];
+                    for (int j = crossDetectLen; j < height - crossDetectLen; j++)
+                    {
+                        if (imageBytes[i + j * width] == 255)
+                        {
+                            CrossType type = GetCrossFromRight(width, imageBytes, i, j);
+                            if (type != CrossType.None)
+                                AddPoint(crossDic, type, i, j);
+                        }
+                    }
                 }
-                //大于92%通过
-                int blackCount = blackBytes.Count(b => b == 0);
-                bool not45 = blackCount > blackBytes.Length * 0.92;
-                return hasHoriAndVerti && not45;
+                return crossDic;
             }
             catch (Exception ex)
             {
 
                 throw ex;
             }
+        }
+
+        private void AddPoint(Dictionary<CrossType, List<Point>> crossDic, CrossType type, int x, int y)
+        {
+            if (crossDic.Keys.Contains(type))
+            {
+                crossDic[type].Add(new Point(x, y));
+            }
+            else
+            {
+                List<Point> pList = new List<Point>();
+                pList.Add(new Point(x, y));
+                crossDic.Add(type, pList);
+            }
+        }
+
+
+        /// <summary>
+        /// 从上检查交叉点
+        /// </summary>
+        /// <param name="width"></param>
+        /// <param name="imageBytes"></param>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <returns>0表示非交叉点，1,2,3,4分别表示左上右下T字，5,6,7,8分别表示从左上角开始顺时针方向的角。所以在这里可能会有0,2,5,6四种情况</returns>
+        private CrossType GetCrossFromUp(int width, byte[] imageBytes, int x, int y)
+        {
+            bool isdown = IsLineOnDirection(width, imageBytes, x, y, 0, 1);
+            if (!isdown)
+            {
+                return CrossType.None;
+            }
+            bool toLeft = IsLineOnDirection(width, imageBytes, x, y, -1, 0);
+            bool toRight = IsLineOnDirection(width, imageBytes, x, y, 1, 0);
+            if (toLeft && toRight)
+            {
+                return CrossType.Up;
+            }
+            if (toLeft && toRight == false)
+            {
+                return CrossType.RightUp;
+            }
+            if (toLeft == false && toRight)
+            {
+                return CrossType.LeftUp;
+            }
+            return CrossType.None;
+        }
+
+        /// <summary>
+        /// 从下检查交叉点
+        /// </summary>
+        /// <param name="width"></param>
+        /// <param name="imageBytes"></param>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <returns>0表示非交叉点，1,2,3,4分别表示左上右下T字，5,6,7,8分别表示从左上角开始顺时针方向的角。所以在这里可能会有0,4,7,8四种情况</returns>
+        private CrossType GetCrossFromDown(int width, byte[] imageBytes, int x, int y)
+        {
+            bool toUp = IsLineOnDirection(width, imageBytes, x, y, 0, -1);
+            if (!toUp)
+            {
+                return CrossType.None;
+            }
+            bool toLeft = IsLineOnDirection(width, imageBytes, x, y, -1, 0);
+            bool toRight = IsLineOnDirection(width, imageBytes, x, y, 1, 0);
+            if (toLeft && toRight)
+            {
+                return CrossType.Down;
+            }
+            if (toLeft && toRight == false)
+            {
+                return CrossType.RightDown;
+            }
+            if (toLeft == false && toRight)
+            {
+                return CrossType.LeftDown;
+            }
+            return CrossType.None;
+        }
+
+        /// <summary>
+        /// 从左检查交叉点
+        /// </summary>
+        /// <param name="width"></param>
+        /// <param name="imageBytes"></param>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <returns>0表示非交叉点，1,2,3,4分别表示左上右下T字，5,6,7,8分别表示从左上角开始顺时针方向的角。所以在这里可能会有0,1两种情况</returns>
+        private CrossType GetCrossFromLeft(int width, byte[] imageBytes, int x, int y)
+        {
+            bool toRight = IsLineOnDirection(width, imageBytes, x, y, 1, 0);
+            if (toRight == false)
+            {
+                return CrossType.None;
+            }
+            bool toUp = IsLineOnDirection(width, imageBytes, x, y, 0, -1);
+            if (toUp == false)
+            {
+                return CrossType.None;
+            }
+            bool toDown = IsLineOnDirection(width, imageBytes, x, y, 0, 1);
+            if (toDown == false)
+            {
+                return CrossType.None;
+            }
+            return CrossType.Left;
+        }
+
+        /// <summary>
+        /// 从右检查交叉点
+        /// </summary>
+        /// <param name="width"></param>
+        /// <param name="imageBytes"></param>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <returns>0表示非交叉点，1,2,3,4分别表示左上右下T字，5,6,7,8分别表示从左上角开始顺时针方向的角。所以在这里可能会有0,3两种情况</returns>
+        private CrossType GetCrossFromRight(int width, byte[] imageBytes, int x, int y)
+        {
+            bool toLeft = IsLineOnDirection(width, imageBytes, x, y, -1, 0);
+            if (toLeft == false)
+            {
+                return CrossType.None;
+            }
+            bool toUp = IsLineOnDirection(width, imageBytes, x, y, 0, -1);
+            if (toUp == false)
+            {
+                return CrossType.None;
+            }
+            bool toDown = IsLineOnDirection(width, imageBytes, x, y, 0, 1);
+            if (toDown == false)
+            {
+                return CrossType.None;
+            }
+            return CrossType.Right;
+        }
+
+        /// <summary>
+        /// 对于某点，判断某个方向上是否有直线
+        /// </summary>
+        /// <param name="width">图形的宽度</param>
+        /// <param name="imageBytes">图形数据</param>
+        /// <param name="x">要计算的点坐标x</param>
+        /// <param name="y">要计算的点坐标y</param>
+        /// <param name="directionX">x方向，取-1,0,1</param>
+        /// <param name="directionY">y方向，取-1,0,1</param>
+        /// <returns></returns>
+        private bool IsLineOnDirection(int width, byte[] imageBytes, int x, int y, int directionX, int directionY)
+        {
+            try
+            {
+                int iMin = 0, iMax = 0, jMin = 0, jMax = 0;
+                //根据要判断的方向，计算坐标
+                if (directionX == 0)
+                {
+                    iMin = -1;
+                    iMax = 1;
+                    if (directionY == 1)
+                    {
+                        jMin = 1;
+                        jMax = crossDetectLen;
+                    }
+                    else
+                    {
+                        jMin = -crossDetectLen;
+                        jMax = -1;
+                    }
+                }
+                else if (directionY == 0)
+                {
+                    jMin = -1;
+                    jMax = 1;
+                    if (directionY == 1)
+                    {
+                        iMin = 1;
+                        iMax = crossDetectLen;
+                    }
+                    else
+                    {
+                        iMin = -crossDetectLen;
+                        iMax = -1;
+                    }
+                }
+
+                byte[] whiteBytes = new byte[3 * crossDetectLen];
+                int index = 0;
+                for (int i = iMin; i <= iMax; i++)
+                {
+                    for (int j = jMin; j <= jMax; j++)
+                    {
+                        whiteBytes[index++] = imageBytes[x + i + (y + j) * width];
+                    }
+                }
+                int whiteCount = whiteBytes.Count(b => b == 255);
+                return whiteCount > whiteBytes.Length * 0.15;
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+
+        enum CrossType
+        {
+            None = 0, Left, Up, Right, Down, LeftUp, RightUp, RightDown, LeftDown
         }
     }
 }
