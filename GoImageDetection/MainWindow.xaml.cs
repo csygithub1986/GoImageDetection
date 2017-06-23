@@ -217,8 +217,44 @@ namespace GoImageDetection
             //第三、四个参数分别为边缘检测阈值和连接阈值（大于第一个作为边界，小于第二个舍弃，介于之间时看该点是否连接着其他边界点）
             CvInvoke.Canny(img, cannyEdges, cannyThreshold, cannyThreshold * 0.8);
 
+
             imageOrigin.Image = cannyEdges;
             imageResult.Image = circleImage;
+        }
+
+        private void BtnChessBoard_Click(object sender, RoutedEventArgs e)
+        {
+            Bitmap bitmap = new Bitmap(fileNameTextBox.Text);
+            Image<Bgr, Byte> img = new Image<Bgr, byte>(bitmap);
+            UMat cornerMat = new UMat();
+
+            CvInvoke.FindChessboardCorners(img, new System.Drawing.Size(9, 9), cornerMat);
+            //CvInvoke.Find4QuadCornerSubpix(img, cornerMat, new System.Drawing.Size(9, 9));
+
+            imageOrigin.Image = img;
+            imageResult.Image = cornerMat;
+        }
+
+        private void BtnLineFit_Click(object sender, RoutedEventArgs e)
+        {
+            //float[] x = new float[] { 0, 0, 0, 0, 0 };
+            //float[] y = new float[] { 1, 2, 3, 4, 5 };
+            //int n = 5;
+            //float[] result = new float[3];
+            //MathImport.LineFit(x, y, n, result);
+            ////int c = MathImport.Add(1, 2);
+            PointF[] points = new PointF[] {
+                new PointF(0,1),
+                new PointF(0,2),
+                new PointF(0,3),
+            };
+            PointF direction;
+            PointF pointOnLine;
+            //方向(a,b)和所在点(x0,y0)  代表着直线 a*y=b*x+(ay0-bx0)
+            //直线(a1,b1)(x1,y1)和(a2,b2)(x2,y2)的交点为 
+            //x =[a1a2(y2-y1)+a2b1x1-a1b2x2]/(a2b1-a1b2)   
+            //y =[b1b2(x1-x2)+a2b1y2-a1b2y1]/(a2b1-a1b2)
+            CvInvoke.FitLine(points, out direction, out pointOnLine, DistType.L1, 0, 0.01, 0.01);
         }
     }
 }

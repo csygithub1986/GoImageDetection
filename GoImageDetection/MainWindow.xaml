@@ -99,5 +99,8 @@
             </Grid>
         </GroupBox>
         <TextBlock x:Name="txtLineCount" HorizontalAlignment="Left" Margin="21,101,0,0" TextWrapping="Wrap" Text="" VerticalAlignment="Top"/>
+        <Button x:Name="button1_Copy1" Click="BtnChessBoard_Click" Content="ChessBoard" HorizontalAlignment="Left" Margin="268,45,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
+
+        <Button x:Name="button1_Copy2" Click="BtnLineFit_Click" Content="LineFit" HorizontalAlignment="Left" Margin="72,92,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
     </Grid>
 </Window>

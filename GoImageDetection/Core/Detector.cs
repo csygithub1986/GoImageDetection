@@ -530,8 +530,13 @@ namespace GoImageDetection.Core
         /// <returns>0表示非交叉点，1,2,3,4分别表示左上右下T字，5,6,7,8分别表示从左上角开始顺时针方向的角。所以在这里可能会有0,2,5,6四种情况</returns>
         private CrossType GetCrossFromUp(int width, byte[] imageBytes, int x, int y)
         {
-            bool isdown = IsLineOnDirection(width, imageBytes, x, y, 0, 1);
-            if (!isdown)
+            bool toDown = IsLineOnDirection(width, imageBytes, x, y, 0, 1);
+            if (toDown == false)
+            {
+                return CrossType.None;
+            }
+            bool toUp = IsLineOnDirection(width, imageBytes, x, y, 0, -1);
+            if (toUp)
             {
                 return CrossType.None;
             }
@@ -563,7 +568,12 @@ namespace GoImageDetection.Core
         private CrossType GetCrossFromDown(int width, byte[] imageBytes, int x, int y)
         {
             bool toUp = IsLineOnDirection(width, imageBytes, x, y, 0, -1);
-            if (!toUp)
+            if (toUp == false)
+            {
+                return CrossType.None;
+            }
+            bool toDown = IsLineOnDirection(width, imageBytes, x, y, 0, 1);
+            if (toDown)
             {
                 return CrossType.None;
             }
@@ -599,6 +609,11 @@ namespace GoImageDetection.Core
             {
                 return CrossType.None;
             }
+            bool toLeft = IsLineOnDirection(width, imageBytes, x, y, -1, 0);
+            if (toLeft)
+            {
+                return CrossType.None;
+            }
             bool toUp = IsLineOnDirection(width, imageBytes, x, y, 0, -1);
             if (toUp == false)
             {
@@ -624,6 +639,11 @@ namespace GoImageDetection.Core
         {
             bool toLeft = IsLineOnDirection(width, imageBytes, x, y, -1, 0);
             if (toLeft == false)
+            {
+                return CrossType.None;
+            }
+            bool toRight = IsLineOnDirection(width, imageBytes, x, y, 1, 0);
+            if (toRight)
             {
                 return CrossType.None;
             }
@@ -658,8 +678,8 @@ namespace GoImageDetection.Core
                 //根据要判断的方向，计算坐标
                 if (directionX == 0)
                 {
-                    iMin = -1;
-                    iMax = 1;
+                    iMin = -2;
+                    iMax = 2;
                     if (directionY == 1)
                     {
                         jMin = 1;
@@ -673,8 +693,8 @@ namespace GoImageDetection.Core
                 }
                 else if (directionY == 0)
                 {
-                    jMin = -1;
-                    jMax = 1;
+                    jMin = -2;
+                    jMax = 2;
                     if (directionY == 1)
                     {
                         iMin = 1;
@@ -687,7 +707,7 @@ namespace GoImageDetection.Core
                     }
                 }
 
-                byte[] whiteBytes = new byte[3 * crossDetectLen];
+                byte[] whiteBytes = new byte[5 * crossDetectLen];
                 int index = 0;
                 for (int i = iMin; i <= iMax; i++)
                 {
@@ -697,7 +717,7 @@ namespace GoImageDetection.Core
                     }
                 }
                 int whiteCount = whiteBytes.Count(b => b == 255);
-                return whiteCount > whiteBytes.Length * 0.15;
+                return whiteCount > whiteBytes.Length * 0.08;
             }
             catch (Exception ex)
             {
