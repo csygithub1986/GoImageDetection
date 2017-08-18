@@ -6,13 +6,26 @@
         xmlns:local="clr-namespace:GoImageDetection"
         xmlns:emgu="clr-namespace:Emgu.CV.UI;assembly=Emgu.CV.UI"
         mc:Ignorable="d" Background="#888888"
-        Title="MainWindow" Height="600" Width="1366">
+        Title="MainWindow" Height="700" Width="1366">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="160"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
+
+        
+
         <TabControl x:Name="tabControl" Grid.Row="1">
+            <TabItem Header="重合结果">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <WindowsFormsHost>
+                        <emgu:ImageBox x:Name="dupliImage"></emgu:ImageBox>
+                    </WindowsFormsHost>
+                </Grid>
+            </TabItem>
             <TabItem Header="原图和结果">
                 <Grid >
                     <Grid.ColumnDefinitions>
@@ -75,8 +88,8 @@
                 <TextBox x:Name="txtMaxCir" HorizontalAlignment="Left" Height="23" Margin="288,75,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
             </Grid>
         </GroupBox>
-        <Button IsEnabled="True" x:Name="button1" Click="BtnReDetect_Click" Content="试验" HorizontalAlignment="Left" Margin="72,45,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
-        <Button x:Name="button1_Copy" Click="BtnReDetect_Click2" Content="正式检测" HorizontalAlignment="Left" Margin="175,45,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
+        <Button IsEnabled="False" x:Name="button1" Click="BtnReDetect_Click" Content="试验" HorizontalAlignment="Left" Margin="72,45,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
+        <Button x:Name="button1_Copy" Click="BtnFormalDetect_Click" Content="正式检测" HorizontalAlignment="Left" Margin="175,45,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
 
         <GroupBox Header="Line" HorizontalAlignment="Left" Height="160" Margin="823,0,0,0" VerticalAlignment="Top" Width="472">
             <Grid>
@@ -99,8 +112,8 @@
             </Grid>
         </GroupBox>
         <TextBlock x:Name="txtLineCount" HorizontalAlignment="Left" Margin="21,101,0,0" TextWrapping="Wrap" Text="" VerticalAlignment="Top"/>
-        <Button x:Name="button1_Copy1" Click="BtnChessBoard_Click" Content="ChessBoard" HorizontalAlignment="Left" Margin="268,45,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
+        <Button IsEnabled="False" x:Name="button1_Copy1" Click="BtnChessBoard_Click" Content="ChessBoard" HorizontalAlignment="Left" Margin="268,45,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
 
-        <Button x:Name="button1_Copy2" Click="BtnLineFit_Click" Content="LineFit" HorizontalAlignment="Left" Margin="72,92,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
+        <Button IsEnabled="False" x:Name="button1_Copy2" Click="BtnLineFit_Click" Content="LineFit" HorizontalAlignment="Left" Margin="72,92,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
     </Grid>
 </Window>

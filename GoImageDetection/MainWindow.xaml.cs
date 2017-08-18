@@ -195,33 +195,55 @@ namespace GoImageDetection
             }
         }
 
-        private void BtnReDetect_Click2(object sender, RoutedEventArgs e)
+        private void BtnFormalDetect_Click(object sender, RoutedEventArgs e)
         {
-            Detector detecotr = new Detector();
-            Bitmap bitmap = new Bitmap(fileNameTextBox.Text);
-            detecotr.Detect(bitmap, 19);
+            Detector detector = new Detector();
+            Bitmap bitmap = new Bitmap(fileNameTextBox.Text);//加载图片
+            detector.Detect(bitmap, 19);//检测，完成后detector中带有Circles和CrossPoints信息
 
-
+            //绘制灰度图
             Image<Bgr, Byte> img = new Image<Bgr, byte>(bitmap);
+            UMat cannyEdges = new UMat();
+            //灰度，第三、四个参数分别为边缘检测阈值和连接阈值（大于第一个作为边界，小于第二个舍弃，介于之间时看该点是否连接着其他边界点）
+            CvInvoke.Canny(img, cannyEdges, cannyThreshold, cannyThreshold * 0.8);
+            imageOrigin.Image = cannyEdges;
+
+            //绘制圆和焦点图
             Mat circleImage = new Mat(img.Size, DepthType.Cv8U, 3);
             circleImage.SetTo(new MCvScalar(0));
-            foreach (CircleF circle in detecotr.Circles)
+            foreach (CircleF circle in detector.Circles)
                 CvInvoke.Circle(circleImage, System.Drawing.Point.Round(circle.Center), (int)circle.Radius, new Bgr(System.Drawing.Color.Brown).MCvScalar, 2);
-
-            foreach (var cross in detecotr.CrossPoints)
+            foreach (var cross in detector.CrossPoints)
             {
                 CvInvoke.Circle(circleImage, cross, 2, new Bgr(System.Drawing.Color.Green).MCvScalar, 2);
             }
-
-            UMat cannyEdges = new UMat();
-            //第三、四个参数分别为边缘检测阈值和连接阈值（大于第一个作为边界，小于第二个舍弃，介于之间时看该点是否连接着其他边界点）
-            CvInvoke.Canny(img, cannyEdges, cannyThreshold, cannyThreshold * 0.8);
-
-
-            imageOrigin.Image = cannyEdges;
             imageResult.Image = circleImage;
+
+
+
+            Emgu.CV.Image<Rgb, Byte> im = cannyEdges.ToImage<Rgb, Byte>();
+            Mat twoImage = im.Mat;
+            foreach (CircleF circle in detector.Circles)
+            {
+                CvInvoke.Circle(twoImage, System.Drawing.Point.Round(circle.Center), (int)circle.Radius, new Bgr(System.Drawing.Color.Red).MCvScalar, 2);
+            }
+            System.Drawing.Color[] colors = new System.Drawing.Color[] { System.Drawing.Color.Brown, System.Drawing.Color.Green, System.Drawing.Color.Red, System.Drawing.Color.Yellow, System.Drawing.Color.Purple, System.Drawing.Color.SkyBlue, System.Drawing.Color.Orange };
+            int index = 0;
+            foreach (var cross in detector.CrossPoints)
+            {
+                CvInvoke.Circle(twoImage, cross, 4, new Bgr(colors[index]).MCvScalar, 1);
+                index++;
+                if (index == colors.Length)
+                {
+                    index = 0;
+                }
+            }
+            dupliImage.Image = twoImage;
+
         }
 
+        #region 无用了
+        //chess棋盘检测测试
         private void BtnChessBoard_Click(object sender, RoutedEventArgs e)
         {
             Bitmap bitmap = new Bitmap(fileNameTextBox.Text);
@@ -235,6 +257,7 @@ namespace GoImageDetection
             imageResult.Image = cornerMat;
         }
 
+        //直线拟合测试
         private void BtnLineFit_Click(object sender, RoutedEventArgs e)
         {
             //float[] x = new float[] { 0, 0, 0, 0, 0 };
@@ -256,5 +279,7 @@ namespace GoImageDetection
             //y =[b1b2(x1-x2)+a2b1y2-a1b2y1]/(a2b1-a1b2)
             CvInvoke.FitLine(points, out direction, out pointOnLine, DistType.L1, 0, 0.01, 0.01);
         }
+        #endregion
+
     }
 }
