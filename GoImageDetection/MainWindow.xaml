@@ -6,14 +6,14 @@
         xmlns:local="clr-namespace:GoImageDetection"
         xmlns:emgu="clr-namespace:Emgu.CV.UI;assembly=Emgu.CV.UI"
         mc:Ignorable="d" Background="#888888"
-        Title="MainWindow" Height="700" Width="1366">
+        Title="MainWindow" Height="700" Width="1600">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="160"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        
+
 
         <TabControl x:Name="tabControl" Grid.Row="1">
             <TabItem Header="重合结果">
@@ -72,7 +72,7 @@
         <TextBox x:Name="fileNameTextBox" HorizontalAlignment="Left" Height="23" Margin="58,8,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="220"/>
         <TextBlock x:Name="textBlock" HorizontalAlignment="Left" Margin="21,12,0,0" TextWrapping="Wrap" Text="文件" VerticalAlignment="Top"/>
         <Button x:Name="button" Click="BtnOpenFile_Click" Content="......" HorizontalAlignment="Left" Margin="297,10,0,0" VerticalAlignment="Top" Width="46"/>
-        <GroupBox Header="Circle" HorizontalAlignment="Left" Height="160" Margin="377,0,0,0" VerticalAlignment="Top" Width="423">
+        <GroupBox Header="Circle" HorizontalAlignment="Left" Height="160" Margin="377,0,0,0" VerticalAlignment="Top" Width="429">
             <Grid>
                 <TextBlock x:Name="textBlock1" HorizontalAlignment="Left" Margin="9,12,0,0" TextWrapping="Wrap" Text="dp" VerticalAlignment="Top" Height="15" RenderTransformOrigin="28.156,-2.356"/>
                 <TextBlock x:Name="textBlock1_Copy" HorizontalAlignment="Left" Margin="9,47,0,0" TextWrapping="Wrap" Text="Canny" VerticalAlignment="Top" Height="15"/>
@@ -115,5 +115,11 @@
         <Button IsEnabled="False" x:Name="button1_Copy1" Click="BtnChessBoard_Click" Content="ChessBoard" HorizontalAlignment="Left" Margin="268,45,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
 
         <Button IsEnabled="False" x:Name="button1_Copy2" Click="BtnLineFit_Click" Content="LineFit" HorizontalAlignment="Left" Margin="72,92,0,0" VerticalAlignment="Top" Width="75" Height="38"/>
+        <GroupBox Header="Line" HorizontalAlignment="Left" Height="160" Margin="1314,0,0,0" VerticalAlignment="Top" Width="241">
+            <Grid>
+                <TextBlock HorizontalAlignment="Left" Margin="8,12,0,0" TextWrapping="Wrap" Text="CrossFillRate" VerticalAlignment="Top" Height="15"/>
+                <TextBox x:Name="txtCrossFillRate" HorizontalAlignment="Left" Height="23" Margin="89,8,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+            </Grid>
+        </GroupBox>
     </Grid>
 </Window>

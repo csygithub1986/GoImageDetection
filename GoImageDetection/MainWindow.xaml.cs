@@ -45,6 +45,8 @@ namespace GoImageDetection
         double cannyThresh2 = 50;
         bool cannyI2Gradient = false;
 
+        //cross检测
+        double crossFillRate = 0.2;
 
         public MainWindow()
         {
@@ -66,6 +68,8 @@ namespace GoImageDetection
             txtCannyThresh1.Text = cannyThresh1.ToString();
             txtCannyThresh2.Text = cannyThresh2.ToString();
             txtCannyGradient.Text = cannyI2Gradient.ToString();
+
+            txtCrossFillRate.Text = crossFillRate.ToString();
         }
 
         private void BtnReDetect_Click(object sender, RoutedEventArgs e)
@@ -197,7 +201,9 @@ namespace GoImageDetection
 
         private void BtnFormalDetect_Click(object sender, RoutedEventArgs e)
         {
-            Detector detector = new Detector();
+            crossFillRate = double.Parse(txtCrossFillRate.Text);
+
+            Detector detector = new Detector(crossFillRate);
             Bitmap bitmap = new Bitmap(fileNameTextBox.Text);//加载图片
             detector.Detect(bitmap, 19);//检测，完成后detector中带有Circles和CrossPoints信息
 
