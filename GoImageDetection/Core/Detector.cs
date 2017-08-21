@@ -21,9 +21,10 @@ namespace GoImageDetection.Core
     public class Detector : IDetect
     {
         double minWidthRate = 0.7;
-        double cannyThreshold = 100;    // 参数5：边缘检测阈值（30~180）
+        double cannyThreshold = 80;   // 参数5：边缘检测阈值（30~180）
         double circleAccumulatorThreshold = 30;       // 参数6：累加器阈值（圆心重合点，越低的时候圆弧就越容易当成圆）
 
+        double circleCannyThresh = 100;    // 圆的边缘检测阈值（30~180）
 
         #region 可调参数
 
@@ -41,7 +42,11 @@ namespace GoImageDetection.Core
         //int crossDetectWidth;//十字检测偏差像素数
 
         public CircleF[] Circles;
-        public List<Point> CrossPoints;
+        public Dictionary<CrossType, List<Point>> CrossPoints;
+
+        public UMat cannyEdges;
+
+        int boardSize;
 
         public Detector(double crossFillRate)
         {
@@ -56,6 +61,7 @@ namespace GoImageDetection.Core
         /// <returns></returns>
         public int[] Detect(Bitmap bitmap, int boardSize)
         {
+            this.boardSize = boardSize;
             UMat uimage = InitImage(bitmap);
             maxGridWidth = uimage.Size.Width / (boardSize - 1);
             minGridWidth = (int)(uimage.Size.Width / (boardSize - 1) * minWidthRate);
@@ -69,19 +75,33 @@ namespace GoImageDetection.Core
             //DetectLine(uimage, boardSize, out horizontalLines, out verticalLines);
             //CrossPoints = CalculateCross(horizontalLines, verticalLines);
 
-            UMat cannyEdges = new UMat();
+            cannyEdges = new UMat();
             //第三、四个参数分别为边缘检测阈值和连接阈值（大于第一个作为边界，小于第二个舍弃，介于之间时看该点是否连接着其他边界点）
-            CvInvoke.Canny(uimage, cannyEdges, cannyThreshold, cannyThreshold * 0.8);
+            CvInvoke.Canny(uimage, cannyEdges, cannyThreshold, cannyThreshold * 0.6);
             DateTime t1 = DateTime.Now;
-            Dictionary<CrossType, List<Point>> crossDic = DetectCross(cannyEdges.Bytes, cannyEdges.Cols);
+            CrossPoints = DetectCross(cannyEdges.Bytes, cannyEdges.Cols);
             DateTime t2 = DateTime.Now;
             Console.WriteLine((t2 - t1).Milliseconds + " ms");
 
-            CrossPoints = new List<Point>();
-            foreach (var item in crossDic.Values)
+            foreach (var item in CrossPoints)
             {
-                CrossPoints.AddRange(item);
+                Console.WriteLine(item.Key + "  " + item.Value.Count());
             }
+
+
+            //找交点
+            PointF[] conors = FindConor();
+            if (conors == null)
+            {
+                return null;
+            }
+
+
+            //CrossPoints = new List<Point>();
+            //foreach (var item in crossDic.Values)
+            //{
+            //    CrossPoints.AddRange(item);
+            //}
             return null;
         }
 
@@ -112,7 +132,7 @@ namespace GoImageDetection.Core
             int minRadius = (int)(maxRadius * minWidthRate);
             //最小间距为最小直径
             int minDistance = minRadius * 2;
-            CircleF[] circles = CvInvoke.HoughCircles(uimage, HoughType.Gradient, dp, minDistance, cannyThreshold, circleAccumulatorThreshold, minRadius, maxRadius);
+            CircleF[] circles = CvInvoke.HoughCircles(uimage, HoughType.Gradient, dp, minDistance, circleCannyThresh, circleAccumulatorThreshold, minRadius, maxRadius);
             return circles;
         }
 
@@ -137,7 +157,10 @@ namespace GoImageDetection.Core
             //try
             //{
             //上 //TODO：优化，扫描到了以后就缩小扫描行数，或者扫描到19个了以后就结束，或者加上圆形一共有19个了就结束
-            for (int j = crossDetectLen; j < scanRowCount + crossDetectLen; j++)
+            int edge = scanRowCount + crossDetectLen;
+            bool first = true;
+
+            for (int j = crossDetectLen; j < edge; j++)
             {
                 for (int i = crossDetectLen; i < width - crossDetectLen; i++)
                 {
@@ -147,20 +170,27 @@ namespace GoImageDetection.Core
                         if (type != CrossType.None)
                         {
                             AddPoint(crossDic, type, i, j);
-                            //    //并将之后的一片区域设为0，避免重复检查
-                            //    for (int ii = 0; ii < crossDetectLen; ii++)
-                            //    {
-                            //        for (int jj = 0; jj < crossDetectLen; jj++)
-                            //        {
-                            //            imageBytes[i + ii + (j + jj) * width] = 0;
-                            //        }
-                            //    }
+                            if (first)
+                            {
+                                first = false;
+                                edge = j + minGridWidth;
+                            }
+                            //并将之后的一片区域设为0，避免重复检查
+                            for (int ii = 0; ii < crossDetectLen; ii++)
+                            {
+                                for (int jj = 0; jj < crossDetectLen; jj++)
+                                {
+                                    imageBytes[i + ii + (j + jj) * width] = 0;
+                                }
+                            }
                         }
                     }
                 }
             }
             //下
-            for (int j = height - 1 - crossDetectLen; j > height - scanRowCount - crossDetectLen; j--)
+            edge = height - scanRowCount - crossDetectLen;
+            first = true;
+            for (int j = height - 1 - crossDetectLen; j > edge; j--)
             {
                 for (int i = crossDetectLen; i < width - crossDetectLen; i++)//用crossDetectLen作为两边缓冲区
                 {
@@ -168,12 +198,29 @@ namespace GoImageDetection.Core
                     {
                         CrossType type = GetCrossFromDown(width, imageBytes, i, j);
                         if (type != CrossType.None)
+                        {
                             AddPoint(crossDic, type, i, j);
+                            if (first)
+                            {
+                                first = false;
+                                edge = j - minGridWidth;
+                            }
+                            //并将之后的一片区域设为0，避免重复检查
+                            for (int ii = 0; ii < crossDetectLen; ii++)
+                            {
+                                for (int jj = 0; jj < crossDetectLen; jj++)
+                                {
+                                    imageBytes[i + ii + (j + jj) * width] = 0;
+                                }
+                            }
+                        }
                     }
                 }
             }
             //左
-            for (int i = crossDetectLen; i < scanColCount + crossDetectLen; i++)
+            edge = scanColCount + crossDetectLen;
+            first = true;
+            for (int i = crossDetectLen; i < edge; i++)
             {
                 for (int j = crossDetectLen; j < height - crossDetectLen; j++)
                 {
@@ -181,12 +228,29 @@ namespace GoImageDetection.Core
                     {
                         CrossType type = GetCrossFromLeft(width, imageBytes, i, j);
                         if (type != CrossType.None)
+                        {
                             AddPoint(crossDic, type, i, j);
+                            if (first)
+                            {
+                                first = false;
+                                edge = i + minGridWidth;
+                            }
+                            //并将之后的一片区域设为0，避免重复检查
+                            for (int ii = 0; ii < crossDetectLen; ii++)
+                            {
+                                for (int jj = 0; jj < crossDetectLen; jj++)
+                                {
+                                    imageBytes[i + ii + (j + jj) * width] = 0;
+                                }
+                            }
+                        }
                     }
                 }
             }
             //右
-            for (int i = width - 1 - crossDetectLen; i > width - scanColCount - crossDetectLen; i--)
+            edge = width - scanColCount - crossDetectLen;
+            first = true;
+            for (int i = width - 1 - crossDetectLen; i > edge; i--)
             {
                 for (int j = crossDetectLen; j < height - crossDetectLen; j++)
                 {
@@ -194,7 +258,22 @@ namespace GoImageDetection.Core
                     {
                         CrossType type = GetCrossFromRight(width, imageBytes, i, j);
                         if (type != CrossType.None)
+                        {
                             AddPoint(crossDic, type, i, j);
+                            if (first)
+                            {
+                                first = false;
+                                edge = i - minGridWidth;
+                            }
+                            //并将之后的一片区域设为0，避免重复检查
+                            for (int ii = 0; ii < crossDetectLen; ii++)
+                            {
+                                for (int jj = 0; jj < crossDetectLen; jj++)
+                                {
+                                    imageBytes[i + ii + (j + jj) * width] = 0;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -407,6 +486,7 @@ namespace GoImageDetection.Core
                 }
             }
             int whiteCount = whiteBytes.Count(b => b == 255);
+            rate = (double)whiteCount / whiteBytes.Length;
             return whiteCount > whiteBytes.Length * crossFillRate;
             //}
             //catch (Exception ex)
@@ -429,10 +509,198 @@ namespace GoImageDetection.Core
             }
         }
 
-        enum CrossType
+        public enum CrossType
         {
             None = 0, Left, Up, Right, Down, LeftUp, RightUp, RightDown, LeftDown
         }
+
+        #region canny和直线图
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns>从左上角顺时针的点</returns>
+        private PointF[] FindConor()
+        {
+            List<PointF> leftPoints = new List<PointF>();
+            if (CrossPoints.Keys.Contains(CrossType.Left))
+            {
+                foreach (var item in CrossPoints[CrossType.Left])
+                {
+                    leftPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+            if (leftPoints.Count < 2)
+            {
+                return null;
+            }
+            PointF directionLeft;
+            PointF pointOnLineLeft;
+            LineMethods.LineFit(leftPoints.ToArray(), out directionLeft, out pointOnLineLeft);
+
+            List<PointF> rightPoints = new List<PointF>();
+            if (CrossPoints.Keys.Contains(CrossType.Right))
+            {
+                foreach (var item in CrossPoints[CrossType.Right])
+                {
+                    rightPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+            if (rightPoints.Count < 2)
+            {
+                return null;
+            }
+            PointF directionRight;
+            PointF pointOnLineRight;
+            LineMethods.LineFit(rightPoints.ToArray(), out directionRight, out pointOnLineRight);
+
+            List<PointF> upPoints = new List<PointF>();
+            if (CrossPoints.Keys.Contains(CrossType.Up))
+            {
+                foreach (var item in CrossPoints[CrossType.Up])
+                {
+                    upPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+            if (upPoints.Count < 2)
+            {
+                return null;
+            }
+            if (CrossPoints.Keys.Contains(CrossType.LeftUp))
+            {
+                foreach (var item in CrossPoints[CrossType.LeftUp])
+                {
+                    upPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+            if (CrossPoints.Keys.Contains(CrossType.RightUp))
+            {
+                foreach (var item in CrossPoints[CrossType.RightUp])
+                {
+                    upPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+
+            PointF directionUp;
+            PointF pointOnLineUp;
+            LineMethods.LineFit(upPoints.ToArray(), out directionUp, out pointOnLineUp);
+
+            List<PointF> downPoints = new List<PointF>();
+            if (CrossPoints.Keys.Contains(CrossType.Down))
+            {
+                foreach (var item in CrossPoints[CrossType.Down])
+                {
+                    downPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+            if (downPoints.Count < 2)
+            {
+                return null;
+            }
+            if (CrossPoints.Keys.Contains(CrossType.LeftDown))
+            {
+                foreach (var item in CrossPoints[CrossType.LeftDown])
+                {
+                    downPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+            if (CrossPoints.Keys.Contains(CrossType.RightDown))
+            {
+                foreach (var item in CrossPoints[CrossType.RightDown])
+                {
+                    downPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+
+            PointF directionDown;
+            PointF pointOnLineDown;
+            LineMethods.LineFit(downPoints.ToArray(), out directionDown, out pointOnLineDown);//拟合
+
+            //求交点
+            PointF? leftTop = LineMethods.FindLineCross(directionLeft, pointOnLineLeft, directionUp, pointOnLineUp);
+            PointF? rightTop = LineMethods.FindLineCross(directionRight, pointOnLineRight, directionUp, pointOnLineUp);
+            PointF? leftDown = LineMethods.FindLineCross(directionLeft, pointOnLineLeft, directionDown, pointOnLineDown);
+            PointF? rightDown = LineMethods.FindLineCross(directionRight, pointOnLineRight, directionDown, pointOnLineDown);
+            if (leftTop == null || rightTop == null || leftDown == null || rightDown == null)
+            {
+                return null;
+            }
+            PointF[] result = new PointF[] { leftTop.Value, rightTop.Value, rightDown.Value, leftDown.Value };
+            return result;
+        }
+
+        private Point[] CalculateAllCoordinate(PointF[] conors)
+        {
+            PointF leftTop = conors[0];
+            PointF rightTop = conors[1];
+            PointF rightDown = conors[2];
+            PointF leftDown = conors[3];
+
+            //先获得左右的等分
+            PointF[] lefts = new PointF[boardSize];
+            for (int i = 0; i < boardSize; i++)
+            {
+                lefts[i] = new PointF();
+                lefts[i].X = leftTop.X + (leftDown.X - leftTop.X) * i / (boardSize - 1);
+                lefts[i].Y = leftTop.Y + (leftDown.Y - leftTop.Y) * i / (boardSize - 1);
+            }
+            PointF[] rights = new PointF[boardSize];
+            for (int i = 0; i < boardSize; i++)
+            {
+                rights[i] = new PointF();
+                rights[i].X = rightTop.X + (rightDown.X - rightTop.X) * i / (boardSize - 1);
+                rights[i].Y = rightTop.Y + (rightDown.Y - rightTop.Y) * i / (boardSize - 1);
+            }
+
+            //求所有
+            Point[] coordinates = new Point[boardSize * boardSize];
+            for (int i = 0; i < boardSize; i++)
+            {
+                for (int j = 0; j < boardSize; j++)
+                {
+                    coordinates[i + j * boardSize] = new Point()
+                    {
+                        X = (int)(lefts[j].X + (rights[j].X - lefts[j].X) * i / (boardSize - 1)) + 1,//因为检测的时候都偏小，这里补偿1像素
+                        Y = (int)(lefts[j].Y + (rights[j].Y - lefts[j].Y) * i / (boardSize - 1)) + 1,//因为检测的时候都偏小，这里补偿1像素
+                    };
+                }
+            }
+            return coordinates;
+        }
+
+        #endregion
+
+        #region 验证
+        double rate;
+        /// <summary>
+        ///  验证十字
+        /// </summary>
+        /// <param name="x">坐标x</param>
+        /// <param name="y">坐标y</param>
+        /// <returns>左上右下的比例</returns>
+        public double[] CheckCross(int x, int y)
+        {
+            if (x < crossDetectLen || x >= cannyEdges.Cols - crossDetectLen || y < crossDetectLen || y >= cannyEdges.Rows - crossDetectLen)
+            {
+                return null;
+            }
+            double[] rates = new double[4];
+            //左
+            IsLineOnDirection(cannyEdges.Cols, cannyEdges.Bytes, x, y, -1, 0);
+            rates[0] = rate;
+            //上
+            IsLineOnDirection(cannyEdges.Cols, cannyEdges.Bytes, x, y, 0, -1);
+            rates[1] = rate;
+            //右
+            IsLineOnDirection(cannyEdges.Cols, cannyEdges.Bytes, x, y, 1, 0);
+            rates[2] = rate;
+            //下
+            IsLineOnDirection(cannyEdges.Cols, cannyEdges.Bytes, x, y, 0, 1);
+            rates[3] = rate;
+            return rates;
+        }
+
+        #endregion
 
         #region 弃用
         private List<Point> FindCross_Old(byte[] imageBytes, int width, int height)
@@ -581,7 +849,7 @@ namespace GoImageDetection.Core
         {
             UMat cannyEdges = new UMat();
             //第三、四个参数分别为边缘检测阈值和连接阈值（大于第一个作为边界，小于第二个舍弃，介于之间时看该点是否连接着其他边界点）
-            CvInvoke.Canny(uimage, cannyEdges, cannyThreshold, cannyThreshold * 0.8);
+            CvInvoke.Canny(uimage, cannyEdges, circleCannyThresh, circleCannyThresh * 0.8);
             LineSegment2D[] lines = CvInvoke.HoughLinesP(
                cannyEdges,
                1, //像素分辨率，取1

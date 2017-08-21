@@ -28,6 +28,7 @@ namespace GoImageDetection
     /// </summary>
     public partial class MainWindow : Window
     {
+        #region 字段
         double dp = 1;    // 参数3：dp，不懂
         double minDist = 40;     // 参数4：两个圆中心的最小距离
         double cannyThreshold = 80;    // 参数5：边缘检测阈值（30~180）
@@ -47,6 +48,9 @@ namespace GoImageDetection
 
         //cross检测
         double crossFillRate = 0.2;
+        #endregion
+
+        Detector detector;
 
         public MainWindow()
         {
@@ -72,6 +76,247 @@ namespace GoImageDetection
             txtCrossFillRate.Text = crossFillRate.ToString();
         }
 
+        private void BtnOpenFile_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog openFileDialog1 = new OpenFileDialog();
+            DialogResult result = openFileDialog1.ShowDialog();
+            if (result == System.Windows.Forms.DialogResult.OK || result == System.Windows.Forms.DialogResult.Yes)
+            {
+                fileNameTextBox.Text = openFileDialog1.FileName;
+            }
+        }
+
+        private void BtnFormalDetect_Click(object sender, RoutedEventArgs e)
+        {
+            crossFillRate = double.Parse(txtCrossFillRate.Text);
+
+            detector = new Detector(crossFillRate);
+            Bitmap bitmap = new Bitmap(fileNameTextBox.Text);//加载图片
+            detector.Detect(bitmap, 19);//检测，完成后detector中带有Circles和CrossPoints信息
+
+            //绘制灰度图
+            //Image<Bgr, Byte> img = new Image<Bgr, byte>(bitmap);
+            UMat cannyEdges = detector.cannyEdges;
+            ////灰度，第三、四个参数分别为边缘检测阈值和连接阈值（大于第一个作为边界，小于第二个舍弃，介于之间时看该点是否连接着其他边界点）
+            //CvInvoke.Canny(img, cannyEdges, cannyThreshold, cannyThreshold * 0.8);
+            imageOrigin.Image = cannyEdges;
+
+            #region 鼠标事件
+            imageOrigin.MouseDown += ImageOrigin_MouseDown;
+            #endregion
+
+            //绘制圆和焦点图
+            Mat circleImage = new Mat(cannyEdges.Size, DepthType.Cv8U, 3);
+            circleImage.SetTo(new MCvScalar(0));
+            foreach (CircleF circle in detector.Circles)
+                CvInvoke.Circle(circleImage, System.Drawing.Point.Round(circle.Center), (int)circle.Radius, new Bgr(System.Drawing.Color.Brown).MCvScalar, 2);
+            foreach (var points in detector.CrossPoints.Values)
+            {
+                foreach (var point in points)
+                {
+                    CvInvoke.Circle(circleImage, point, 2, new Bgr(System.Drawing.Color.Green).MCvScalar, 2);
+                }
+            }
+            imageResult.Image = circleImage;
+
+
+            //canny图和十字圆圈重合图
+            Emgu.CV.Image<Rgb, Byte> im = cannyEdges.ToImage<Rgb, Byte>();
+            Mat twoImage = im.Mat;
+            foreach (CircleF circle in detector.Circles)
+            {
+                CvInvoke.Circle(twoImage, System.Drawing.Point.Round(circle.Center), (int)circle.Radius, new Bgr(System.Drawing.Color.Red).MCvScalar, 2);
+            }
+            System.Drawing.Color[] colors = new System.Drawing.Color[] {
+                System.Drawing.Color.Red,//Left
+                System.Drawing.Color.Green,//Up
+                System.Drawing.Color.Red,//Right
+                System.Drawing.Color.Green,//Down
+                System.Drawing.Color.GreenYellow,//LeftUp
+                System.Drawing.Color.Pink,//RightUp
+                System.Drawing.Color.Pink,//RightDown
+                System.Drawing.Color.GreenYellow//LeftDown 
+            };
+            int index = 0;
+            foreach (var pair in detector.CrossPoints)
+            {
+                foreach (var cross in pair.Value)
+                {
+                    CvInvoke.Circle(twoImage, cross, 4, new Bgr(colors[(int)pair.Key - 1]).MCvScalar, 3);
+                    index++;
+                    if (index == colors.Length)
+                    {
+                        index = 0;
+                    }
+                }
+            }
+            dupliImage.Image = twoImage;
+
+            #region canny和直线图
+            List<PointF> leftPoints = new List<PointF>();
+            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.Left))
+            {
+                foreach (var item in detector.CrossPoints[Detector.CrossType.Left])
+                {
+                    leftPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+            if (leftPoints.Count < 2)
+            {
+                return;
+            }
+            PointF directionLeft;
+            PointF pointOnLineLeft;
+            LineMethods.LineFit(leftPoints.ToArray(), out directionLeft, out pointOnLineLeft);
+
+            List<PointF> rightPoints = new List<PointF>();
+            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.Right))
+            {
+                foreach (var item in detector.CrossPoints[Detector.CrossType.Right])
+                {
+                    rightPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+            if (rightPoints.Count < 2)
+            {
+                return;
+            }
+            PointF directionRight;
+            PointF pointOnLineRight;
+            LineMethods.LineFit(rightPoints.ToArray(), out directionRight, out pointOnLineRight);
+
+            List<PointF> upPoints = new List<PointF>();
+            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.Up))
+            {
+                foreach (var item in detector.CrossPoints[Detector.CrossType.Up])
+                {
+                    upPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+            if (upPoints.Count < 2)
+            {
+                return;
+            }
+            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.LeftUp))
+            {
+                foreach (var item in detector.CrossPoints[Detector.CrossType.LeftUp])
+                {
+                    upPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.RightUp))
+            {
+                foreach (var item in detector.CrossPoints[Detector.CrossType.RightUp])
+                {
+                    upPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+
+            PointF directionUp;
+            PointF pointOnLineUp;
+            LineMethods.LineFit(upPoints.ToArray(), out directionUp, out pointOnLineUp);
+
+            List<PointF> downPoints = new List<PointF>();
+            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.Down))
+            {
+                foreach (var item in detector.CrossPoints[Detector.CrossType.Down])
+                {
+                    downPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+            if (downPoints.Count < 2)
+            {
+                return;
+            }
+            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.LeftDown))
+            {
+                foreach (var item in detector.CrossPoints[Detector.CrossType.LeftDown])
+                {
+                    downPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.RightDown))
+            {
+                foreach (var item in detector.CrossPoints[Detector.CrossType.RightDown])
+                {
+                    downPoints.Add(new PointF(item.X, item.Y));
+                }
+            }
+
+            PointF directionDown;
+            PointF pointOnLineDown;
+            LineMethods.LineFit(downPoints.ToArray(), out directionDown, out pointOnLineDown);
+
+            //求焦点
+            PointF? leftTop = LineMethods.FindLineCross(directionLeft, pointOnLineLeft, directionUp, pointOnLineUp);
+            PointF? rightTop = LineMethods.FindLineCross(directionRight, pointOnLineRight, directionUp, pointOnLineUp);
+            PointF? leftDown = LineMethods.FindLineCross(directionLeft, pointOnLineLeft, directionDown, pointOnLineDown);
+            PointF? rightDown = LineMethods.FindLineCross(directionRight, pointOnLineRight, directionDown, pointOnLineDown);
+
+            Emgu.CV.Image<Rgb, Byte> im2 = cannyEdges.ToImage<Rgb, Byte>();
+            Mat twoImage2 = im2.Mat;
+            CvInvoke.Line(twoImage2, new System.Drawing.Point((int)leftTop.Value.X, (int)leftTop.Value.Y), new System.Drawing.Point((int)rightTop.Value.X, (int)rightTop.Value.Y), new MCvScalar(0, 255, 0), 1);
+            CvInvoke.Line(twoImage2, new System.Drawing.Point((int)leftDown.Value.X, (int)leftDown.Value.Y), new System.Drawing.Point((int)rightDown.Value.X, (int)rightDown.Value.Y), new MCvScalar(0, 255, 0), 1);
+            CvInvoke.Line(twoImage2, new System.Drawing.Point((int)leftTop.Value.X, (int)leftTop.Value.Y), new System.Drawing.Point((int)leftDown.Value.X, (int)leftDown.Value.Y), new MCvScalar(0, 255, 0), 1);
+            CvInvoke.Line(twoImage2, new System.Drawing.Point((int)rightTop.Value.X, (int)rightTop.Value.Y), new System.Drawing.Point((int)rightDown.Value.X, (int)rightDown.Value.Y), new MCvScalar(0, 255, 0), 1);
+            imageCannyAndLine.Image = twoImage2;
+            #endregion
+        }
+
+        private void ImageOrigin_MouseDown(object sender, System.Windows.Forms.MouseEventArgs e)
+        {
+            int x = (int)((e.Location.X / imageOrigin.ZoomScale + imageOrigin.HorizontalScrollBar.Value));
+            int y = (int)((e.Location.Y / imageOrigin.ZoomScale + imageOrigin.VerticalScrollBar.Value));
+            Console.WriteLine(x + "  " + y);
+            double[] rates = detector.CheckCross(x, y);
+            if (rates != null)
+            {
+                txtConsole.Text = rates[0].ToString();
+                txtConsole.Text += "\r\n" + rates[1].ToString();
+                txtConsole.Text += "\r\n" + rates[2].ToString();
+                txtConsole.Text += "\r\n" + rates[3].ToString();
+            }
+        }
+
+
+        #region 无用了
+        //chess棋盘检测测试
+        private void BtnChessBoard_Click(object sender, RoutedEventArgs e)
+        {
+            Bitmap bitmap = new Bitmap(fileNameTextBox.Text);
+            Image<Bgr, Byte> img = new Image<Bgr, byte>(bitmap);
+            UMat cornerMat = new UMat();
+
+            CvInvoke.FindChessboardCorners(img, new System.Drawing.Size(9, 9), cornerMat);
+            //CvInvoke.Find4QuadCornerSubpix(img, cornerMat, new System.Drawing.Size(9, 9));
+
+            imageOrigin.Image = img;
+            imageResult.Image = cornerMat;
+        }
+
+        //直线拟合测试
+        private void BtnLineFit_Click(object sender, RoutedEventArgs e)
+        {
+            //float[] x = new float[] { 0, 0, 0, 0, 0 };
+            //float[] y = new float[] { 1, 2, 3, 4, 5 };
+            //int n = 5;
+            //float[] result = new float[3];
+            //MathImport.LineFit(x, y, n, result);
+            ////int c = MathImport.Add(1, 2);
+            PointF[] points = new PointF[] {
+                new PointF(0,1),
+                new PointF(0,2),
+                new PointF(0,3),
+            };
+            PointF direction;
+            PointF pointOnLine;
+            //方向(a,b)和所在点(x0,y0)  代表着直线 a*y=b*x+(ay0-bx0)
+            //直线(a1,b1)(x1,y1)和(a2,b2)(x2,y2)的交点为 
+            //x =[a1a2(y2-y1)+a2b1x1-a1b2x2]/(a2b1-a1b2)   
+            //y =[b1b2(x1-x2)+a2b1y2-a1b2y1]/(a2b1-a1b2)
+            CvInvoke.FitLine(points, out direction, out pointOnLine, DistType.L1, 0, 0.01, 0.01);
+        }
+
         private void BtnReDetect_Click(object sender, RoutedEventArgs e)
         {
             dp = int.Parse(txtDp.Text.Trim());
@@ -93,8 +338,6 @@ namespace GoImageDetection
 
             PerformShapeDetection();
         }
-
-
 
         public void PerformShapeDetection()
         {
@@ -187,103 +430,6 @@ namespace GoImageDetection
             {
                 Console.WriteLine(ex);
             }
-        }
-
-        private void BtnOpenFile_Click(object sender, RoutedEventArgs e)
-        {
-            OpenFileDialog openFileDialog1 = new OpenFileDialog();
-            DialogResult result = openFileDialog1.ShowDialog();
-            if (result == System.Windows.Forms.DialogResult.OK || result == System.Windows.Forms.DialogResult.Yes)
-            {
-                fileNameTextBox.Text = openFileDialog1.FileName;
-            }
-        }
-
-        private void BtnFormalDetect_Click(object sender, RoutedEventArgs e)
-        {
-            crossFillRate = double.Parse(txtCrossFillRate.Text);
-
-            Detector detector = new Detector(crossFillRate);
-            Bitmap bitmap = new Bitmap(fileNameTextBox.Text);//加载图片
-            detector.Detect(bitmap, 19);//检测，完成后detector中带有Circles和CrossPoints信息
-
-            //绘制灰度图
-            Image<Bgr, Byte> img = new Image<Bgr, byte>(bitmap);
-            UMat cannyEdges = new UMat();
-            //灰度，第三、四个参数分别为边缘检测阈值和连接阈值（大于第一个作为边界，小于第二个舍弃，介于之间时看该点是否连接着其他边界点）
-            CvInvoke.Canny(img, cannyEdges, cannyThreshold, cannyThreshold * 0.8);
-            imageOrigin.Image = cannyEdges;
-
-            //绘制圆和焦点图
-            Mat circleImage = new Mat(img.Size, DepthType.Cv8U, 3);
-            circleImage.SetTo(new MCvScalar(0));
-            foreach (CircleF circle in detector.Circles)
-                CvInvoke.Circle(circleImage, System.Drawing.Point.Round(circle.Center), (int)circle.Radius, new Bgr(System.Drawing.Color.Brown).MCvScalar, 2);
-            foreach (var cross in detector.CrossPoints)
-            {
-                CvInvoke.Circle(circleImage, cross, 2, new Bgr(System.Drawing.Color.Green).MCvScalar, 2);
-            }
-            imageResult.Image = circleImage;
-
-
-
-            Emgu.CV.Image<Rgb, Byte> im = cannyEdges.ToImage<Rgb, Byte>();
-            Mat twoImage = im.Mat;
-            foreach (CircleF circle in detector.Circles)
-            {
-                CvInvoke.Circle(twoImage, System.Drawing.Point.Round(circle.Center), (int)circle.Radius, new Bgr(System.Drawing.Color.Red).MCvScalar, 2);
-            }
-            System.Drawing.Color[] colors = new System.Drawing.Color[] { System.Drawing.Color.Brown, System.Drawing.Color.Green, System.Drawing.Color.Red, System.Drawing.Color.Yellow, System.Drawing.Color.Purple, System.Drawing.Color.SkyBlue, System.Drawing.Color.Orange };
-            int index = 0;
-            foreach (var cross in detector.CrossPoints)
-            {
-                CvInvoke.Circle(twoImage, cross, 4, new Bgr(colors[index]).MCvScalar, 1);
-                index++;
-                if (index == colors.Length)
-                {
-                    index = 0;
-                }
-            }
-            dupliImage.Image = twoImage;
-
-        }
-
-        #region 无用了
-        //chess棋盘检测测试
-        private void BtnChessBoard_Click(object sender, RoutedEventArgs e)
-        {
-            Bitmap bitmap = new Bitmap(fileNameTextBox.Text);
-            Image<Bgr, Byte> img = new Image<Bgr, byte>(bitmap);
-            UMat cornerMat = new UMat();
-
-            CvInvoke.FindChessboardCorners(img, new System.Drawing.Size(9, 9), cornerMat);
-            //CvInvoke.Find4QuadCornerSubpix(img, cornerMat, new System.Drawing.Size(9, 9));
-
-            imageOrigin.Image = img;
-            imageResult.Image = cornerMat;
-        }
-
-        //直线拟合测试
-        private void BtnLineFit_Click(object sender, RoutedEventArgs e)
-        {
-            //float[] x = new float[] { 0, 0, 0, 0, 0 };
-            //float[] y = new float[] { 1, 2, 3, 4, 5 };
-            //int n = 5;
-            //float[] result = new float[3];
-            //MathImport.LineFit(x, y, n, result);
-            ////int c = MathImport.Add(1, 2);
-            PointF[] points = new PointF[] {
-                new PointF(0,1),
-                new PointF(0,2),
-                new PointF(0,3),
-            };
-            PointF direction;
-            PointF pointOnLine;
-            //方向(a,b)和所在点(x0,y0)  代表着直线 a*y=b*x+(ay0-bx0)
-            //直线(a1,b1)(x1,y1)和(a2,b2)(x2,y2)的交点为 
-            //x =[a1a2(y2-y1)+a2b1x1-a1b2x2]/(a2b1-a1b2)   
-            //y =[b1b2(x1-x2)+a2b1y2-a1b2y1]/(a2b1-a1b2)
-            CvInvoke.FitLine(points, out direction, out pointOnLine, DistType.L1, 0, 0.01, 0.01);
         }
         #endregion
 
