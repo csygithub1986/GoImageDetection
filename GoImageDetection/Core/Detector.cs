@@ -14,8 +14,8 @@ namespace GoImageDetection.Core
     /// <summary>
     /// 检测图形算法
     /// 其中有2个假设：
-    /// 1、标准棋盘为0.9375:1，这里采用正方形输入。假定棋盘每一边都在(0.7~1) *(图宽)范围内
-    /// 2、棋盘交叉点误差应该小于最大格宽的正负5%；圆心坐标相差应小于最大格宽的正负25%
+    /// 1、标准棋盘为（0.92~0.96）:1，为了简便，这里图像像素强制为正方形输入。假定棋盘每一边都在(0.7~1) *(图宽)范围内
+    /// 2、棋盘交叉点误差应该小于最大格宽的正负10%；圆心坐标相差应小于最大格宽的正负25%
     /// 目前采用整个棋盘全部检测模式
     /// </summary>
     public class Detector : IDetect
@@ -37,7 +37,7 @@ namespace GoImageDetection.Core
         double dp = 1;    // 参数3：dp，不懂
 
         int maxGridWidth;//最大格宽
-        int minGridWidth;//最小格宽
+        public int minGridWidth;//最小格宽
         int crossDetectLen;//十字检测像素数(纵向)，也作为四周扫描的起点边界
         //int crossDetectWidth;//十字检测偏差像素数
 
@@ -45,8 +45,12 @@ namespace GoImageDetection.Core
         public Dictionary<CrossType, List<Point>> CrossPoints;
 
         public UMat cannyEdges;
-
+        Bitmap bitmap;
         int boardSize;
+        int imageSize;
+
+        public PointF[] conors;
+        public Point[] allCoordinate;
 
         public Detector(double crossFillRate)
         {
@@ -56,13 +60,15 @@ namespace GoImageDetection.Core
         /// <summary>
         /// 检测
         /// </summary>
-        /// <param name="bitmap">图像</param>
+        /// <param name="bitmap">图像，必须为正方形</param>
         /// <param name="boardSize">大小</param>
         /// <returns></returns>
         public int[] Detect(Bitmap bitmap, int boardSize)
         {
+            this.bitmap = bitmap;
             this.boardSize = boardSize;
             UMat uimage = InitImage(bitmap);
+            imageSize = uimage.Cols;
             maxGridWidth = uimage.Size.Width / (boardSize - 1);
             minGridWidth = (int)(uimage.Size.Width / (boardSize - 1) * minWidthRate);
             crossDetectLen = minGridWidth / 4;
@@ -83,26 +89,27 @@ namespace GoImageDetection.Core
             DateTime t2 = DateTime.Now;
             Console.WriteLine((t2 - t1).Milliseconds + " ms");
 
-            foreach (var item in CrossPoints)
-            {
-                Console.WriteLine(item.Key + "  " + item.Value.Count());
-            }
+            //foreach (var item in CrossPoints)
+            //{
+            //    Console.WriteLine(item.Key + "  " + item.Value.Count());
+            //}
 
 
             //找交点
-            PointF[] conors = FindConor();
+            conors = FindConor();
             if (conors == null)
             {
                 return null;
             }
 
+            allCoordinate = CalculateAllCoordinate(conors);
 
-            //CrossPoints = new List<Point>();
-            //foreach (var item in crossDic.Values)
-            //{
-            //    CrossPoints.AddRange(item);
-            //}
-            return null;
+            int[] stones = new int[boardSize * boardSize];
+            for (int i = 0; i < stones.Length; i++)
+            {
+                stones[i] = FindStone(allCoordinate[i].X, allCoordinate[i].Y);
+            }
+            return stones;
         }
 
         /// <summary>
@@ -426,6 +433,32 @@ namespace GoImageDetection.Core
             return CrossType.Right;
         }
 
+        private CrossType GetCrossFromCenter(int width, byte[] imageBytes, int x, int y)
+        {
+            bool toLeft = IsLineOnDirection(width, imageBytes, x, y, -1, 0);
+            if (toLeft == false)
+            {
+                return CrossType.None;
+            }
+            bool toRight = IsLineOnDirection(width, imageBytes, x, y, 1, 0);
+            if (toRight == false)
+            {
+                return CrossType.None;
+            }
+            bool toUp = IsLineOnDirection(width, imageBytes, x, y, 0, -1);
+            if (toUp == false)
+            {
+                return CrossType.None;
+            }
+            bool toDown = IsLineOnDirection(width, imageBytes, x, y, 0, 1);
+            if (toDown == false)
+            {
+                return CrossType.None;
+            }
+            return CrossType.Center;
+        }
+
+
         /// <summary>
         /// 对于某点，判断某个方向上是否有直线
         /// </summary>
@@ -511,13 +544,14 @@ namespace GoImageDetection.Core
 
         public enum CrossType
         {
-            None = 0, Left, Up, Right, Down, LeftUp, RightUp, RightDown, LeftDown
+            None = 0, Left, Up, Right, Down, LeftUp, RightUp, RightDown, LeftDown, Center
         }
 
         #region canny和直线图
 
         /// <summary>
-        /// 
+        /// 找到棋盘四个顶点
+        /// 因为如果一边偏宽，那么它会使它两边的格子不均匀，所以顶点如果不方正，后面的找全部坐标考虑矫正，如果矫正效果不好，考虑放弃不方正的顶角。（待定）
         /// </summary>
         /// <returns>从左上角顺时针的点</returns>
         private PointF[] FindConor()
@@ -562,10 +596,6 @@ namespace GoImageDetection.Core
                     upPoints.Add(new PointF(item.X, item.Y));
                 }
             }
-            if (upPoints.Count < 2)
-            {
-                return null;
-            }
             if (CrossPoints.Keys.Contains(CrossType.LeftUp))
             {
                 foreach (var item in CrossPoints[CrossType.LeftUp])
@@ -580,6 +610,10 @@ namespace GoImageDetection.Core
                     upPoints.Add(new PointF(item.X, item.Y));
                 }
             }
+            if (upPoints.Count < 2)
+            {
+                return null;
+            }
 
             PointF directionUp;
             PointF pointOnLineUp;
@@ -592,10 +626,6 @@ namespace GoImageDetection.Core
                 {
                     downPoints.Add(new PointF(item.X, item.Y));
                 }
-            }
-            if (downPoints.Count < 2)
-            {
-                return null;
             }
             if (CrossPoints.Keys.Contains(CrossType.LeftDown))
             {
@@ -610,6 +640,10 @@ namespace GoImageDetection.Core
                 {
                     downPoints.Add(new PointF(item.X, item.Y));
                 }
+            }
+            if (downPoints.Count < 2)
+            {
+                return null;
             }
 
             PointF directionDown;
@@ -668,6 +702,157 @@ namespace GoImageDetection.Core
             return coordinates;
         }
 
+        /// <summary>
+        /// 找棋子
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <returns>0:empty，1:black，2:white，-1:错误</returns>
+        private int FindStone(int x, int y)
+        {
+            byte[] imageByte = cannyEdges.Bytes;//如果直接随机访问cannyEdges.Bytes中的元素，会非常耗时
+            Console.Write("FindStone    ");
+            //下面三种方法，可信度从高到低
+            #region 先找xy附近25%最大格宽是否有圆，然后圆内的灰度大于平均值（这里简单认为是128，或0.5）则是黑棋，小于则是白棋
+            {
+                int minX = x - maxGridWidth / 4;
+                minX = minX < 0 ? 0 : minX;
+                int maxX = x + maxGridWidth / 4;
+                maxX = maxX >= imageSize ? imageSize - 1 : maxX;
+
+                int minY = x - maxGridWidth / 4;
+                minY = minY < 0 ? 0 : minY;
+                int maxY = x + maxGridWidth / 4;
+                maxY = maxY >= imageSize ? imageSize - 1 : maxY;
+
+                CircleF circleStone = new CircleF(PointF.Empty, 0);
+                foreach (var circle in Circles)
+                {
+                    if (circle.Center.X >= minX && circle.Center.X <= maxX && circle.Center.Y >= minY && circle.Center.Y <= maxY)
+                    {
+                        circleStone = circle;
+                        break;
+                    }
+                }
+                if (circleStone.Radius == 0)
+                {
+                    //或者以0.25倍最小格宽为半径的圆，百分之99（数值待定）都是黑色，判定为有圆
+                    int totalCannyCount = 0;
+                    int blackCount = 0;
+                    float littleRadius = 0.25f * minGridWidth;
+                    for (int i = (int)(-littleRadius) + 1; i < littleRadius; i++)
+                    {
+                        for (int j = (int)(-littleRadius) + 1; j < littleRadius; j++)
+                        {
+                            if (i * i + j * j < littleRadius * littleRadius)
+                            {
+                                totalCannyCount++;
+                                blackCount += imageByte[x + i + (y + j) * imageSize] == 0 ? 1 : 0;
+                            }
+                        }
+                    }
+                    if ((float)blackCount / totalCannyCount >= 0.99)
+                    {
+                        circleStone = new CircleF(new PointF(x, y), littleRadius);
+                    }
+                }
+
+                if (circleStone.Radius != 0)
+                {
+                    //求圆内灰度
+                    float totalGray = 0;
+                    int totalCount = 0;
+                    for (int i = (int)(circleStone.Center.X - circleStone.Radius) + 1; i < circleStone.Center.X + circleStone.Radius; i++)
+                    {
+                        for (int j = (int)(circleStone.Center.Y - circleStone.Radius) + 1; j < circleStone.Center.Y + circleStone.Radius; j++)
+                        {
+                            if ((i - circleStone.Center.X) * (i - circleStone.Center.X) + (j - circleStone.Center.Y) * (j - circleStone.Center.Y) < circleStone.Radius * circleStone.Radius)
+                            {
+                                totalGray += bitmap.GetPixel(i, j).GetBrightness();
+                                totalCount++;
+                            }
+                        }
+                    }
+                    float averageGray = totalGray / totalCount;
+                    if (averageGray > 0.5)
+                    {
+                        return 2;//白
+                    }
+                    else if (averageGray < 0.5)
+                    {
+                        return 1;//黑
+                    }
+                    else
+                    {
+                        Console.WriteLine("错误");
+                        return -1;//错误
+                    }
+                }
+            }
+            #endregion
+
+            #region 再找xy附近10%最大格宽是否有十字，如果有，则为空
+            {
+                Console.WriteLine("找十字    ");
+
+                int minX = x - maxGridWidth / 10;
+                minX = minX < 0 ? 0 : minX;
+                int maxX = x + maxGridWidth / 10;
+                maxX = maxX >= imageSize ? imageSize - 1 : maxX;
+
+                int minY = x - maxGridWidth / 10;
+                minY = minY < 0 ? 0 : minY;
+                int maxY = x + maxGridWidth / 10;
+                maxY = maxY >= imageSize ? imageSize - 1 : maxY;
+
+                for (int i = minX; i <= maxX; i++)
+                {
+                    for (int j = minY; j <= maxY; j++)
+                    {
+                        CrossType type = GetCrossFromCenter(imageSize, imageByte, i, j);
+                        if (type == CrossType.Center)
+                        {
+                            return 0;//空
+                        }
+                    }
+                }
+            }
+            #endregion
+
+            #region 如果既无圆也无十字，最后对0.4倍最小格宽为半径的圆求灰度，如果灰度<0.2或者>0.75（数值待定），之间则为空
+            {
+                Console.WriteLine("最后小圆    ");
+                float totalGray = 0;
+                int totalCount = 0;
+                float littleRadius = 0.4f * minGridWidth;
+
+                for (int i = (int)(-littleRadius) + 1; i < littleRadius; i++)
+                {
+                    for (int j = (int)(-littleRadius) + 1; j < littleRadius; j++)
+                    {
+                        if (i * i + j * j < littleRadius * littleRadius)
+                        {
+                            totalCount++;
+                            totalGray += bitmap.GetPixel(x + i, y + j).GetBrightness();
+                        }
+                    }
+                }
+                float averageGray = totalGray / totalCount;
+                if (averageGray > 0.75)
+                {
+                    return 2;//白
+                }
+                else if (averageGray < 0.2)
+                {
+                    return 1;//黑
+                }
+                else
+                {
+                    return 0;//空
+                }
+            }
+            #endregion
+        }
         #endregion
 
         #region 验证
@@ -801,6 +986,7 @@ namespace GoImageDetection.Core
                 throw ex;
             }
         }
+
         private List<Point> CalculateCross(List<LineSegment2D> horizontalLines, List<LineSegment2D> verticalLines)
         {
             //去掉重复的线 TODO：这里就直接简单粗暴的认为5%内是同一根线，并取其中一根就可以，以后改进

@@ -36,7 +36,17 @@
                     </WindowsFormsHost>
                 </Grid>
             </TabItem>
-            <TabItem Header="原图和结果">
+            <TabItem Header="最终结果">
+                <Grid >
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <WindowsFormsHost>
+                        <emgu:ImageBox x:Name="imageFinal"></emgu:ImageBox>
+                    </WindowsFormsHost>
+                </Grid>
+            </TabItem>
+            <TabItem Header="原图和结果" >
                 <Grid >
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>

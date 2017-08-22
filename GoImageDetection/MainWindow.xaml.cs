@@ -92,7 +92,7 @@ namespace GoImageDetection
 
             detector = new Detector(crossFillRate);
             Bitmap bitmap = new Bitmap(fileNameTextBox.Text);//加载图片
-            detector.Detect(bitmap, 19);//检测，完成后detector中带有Circles和CrossPoints信息
+            int[] finalResult = detector.Detect(bitmap, 19);//检测，完成后detector中带有Circles和CrossPoints信息
 
             //绘制灰度图
             //Image<Bgr, Byte> img = new Image<Bgr, byte>(bitmap);
@@ -153,113 +153,39 @@ namespace GoImageDetection
             dupliImage.Image = twoImage;
 
             #region canny和直线图
-            List<PointF> leftPoints = new List<PointF>();
-            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.Left))
+            if (detector.conors != null)
             {
-                foreach (var item in detector.CrossPoints[Detector.CrossType.Left])
-                {
-                    leftPoints.Add(new PointF(item.X, item.Y));
-                }
-            }
-            if (leftPoints.Count < 2)
-            {
-                return;
-            }
-            PointF directionLeft;
-            PointF pointOnLineLeft;
-            LineMethods.LineFit(leftPoints.ToArray(), out directionLeft, out pointOnLineLeft);
+                PointF? leftTop = detector.conors[0];
+                PointF? rightTop = detector.conors[1];
+                PointF? rightDown = detector.conors[2];
+                PointF? leftDown = detector.conors[3];
 
-            List<PointF> rightPoints = new List<PointF>();
-            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.Right))
-            {
-                foreach (var item in detector.CrossPoints[Detector.CrossType.Right])
-                {
-                    rightPoints.Add(new PointF(item.X, item.Y));
-                }
-            }
-            if (rightPoints.Count < 2)
-            {
-                return;
-            }
-            PointF directionRight;
-            PointF pointOnLineRight;
-            LineMethods.LineFit(rightPoints.ToArray(), out directionRight, out pointOnLineRight);
-
-            List<PointF> upPoints = new List<PointF>();
-            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.Up))
-            {
-                foreach (var item in detector.CrossPoints[Detector.CrossType.Up])
-                {
-                    upPoints.Add(new PointF(item.X, item.Y));
-                }
-            }
-            if (upPoints.Count < 2)
-            {
-                return;
-            }
-            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.LeftUp))
-            {
-                foreach (var item in detector.CrossPoints[Detector.CrossType.LeftUp])
-                {
-                    upPoints.Add(new PointF(item.X, item.Y));
-                }
-            }
-            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.RightUp))
-            {
-                foreach (var item in detector.CrossPoints[Detector.CrossType.RightUp])
-                {
-                    upPoints.Add(new PointF(item.X, item.Y));
-                }
+                Emgu.CV.Image<Rgb, Byte> im2 = cannyEdges.ToImage<Rgb, Byte>();
+                Mat twoImage2 = im2.Mat;
+                CvInvoke.Line(twoImage2, new System.Drawing.Point((int)leftTop.Value.X, (int)leftTop.Value.Y), new System.Drawing.Point((int)rightTop.Value.X, (int)rightTop.Value.Y), new MCvScalar(0, 255, 0), 1);
+                CvInvoke.Line(twoImage2, new System.Drawing.Point((int)leftDown.Value.X, (int)leftDown.Value.Y), new System.Drawing.Point((int)rightDown.Value.X, (int)rightDown.Value.Y), new MCvScalar(0, 255, 0), 1);
+                CvInvoke.Line(twoImage2, new System.Drawing.Point((int)leftTop.Value.X, (int)leftTop.Value.Y), new System.Drawing.Point((int)leftDown.Value.X, (int)leftDown.Value.Y), new MCvScalar(0, 255, 0), 1);
+                CvInvoke.Line(twoImage2, new System.Drawing.Point((int)rightTop.Value.X, (int)rightTop.Value.Y), new System.Drawing.Point((int)rightDown.Value.X, (int)rightDown.Value.Y), new MCvScalar(0, 255, 0), 1);
+                imageCannyAndLine.Image = twoImage2;
             }
 
-            PointF directionUp;
-            PointF pointOnLineUp;
-            LineMethods.LineFit(upPoints.ToArray(), out directionUp, out pointOnLineUp);
 
-            List<PointF> downPoints = new List<PointF>();
-            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.Down))
+            #endregion
+
+            #region imageFinal
+            if (finalResult != null)
             {
-                foreach (var item in detector.CrossPoints[Detector.CrossType.Down])
+                Emgu.CV.Image<Rgb, Byte> imFinal = cannyEdges.ToImage<Rgb, Byte>();
+                Mat matFinal = imFinal.Mat;
+                for (int i = 0; i < finalResult.Length; i++)
                 {
-                    downPoints.Add(new PointF(item.X, item.Y));
+                    //if (finalResult[i] > 0)
+                    {
+                        CvInvoke.Circle(matFinal, detector.allCoordinate[i], detector.minGridWidth / 2, new Bgr(System.Drawing.Color.DarkGreen ).MCvScalar, 5);
+                    }
                 }
+                imageFinal.Image = matFinal;
             }
-            if (downPoints.Count < 2)
-            {
-                return;
-            }
-            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.LeftDown))
-            {
-                foreach (var item in detector.CrossPoints[Detector.CrossType.LeftDown])
-                {
-                    downPoints.Add(new PointF(item.X, item.Y));
-                }
-            }
-            if (detector.CrossPoints.Keys.Contains(Detector.CrossType.RightDown))
-            {
-                foreach (var item in detector.CrossPoints[Detector.CrossType.RightDown])
-                {
-                    downPoints.Add(new PointF(item.X, item.Y));
-                }
-            }
-
-            PointF directionDown;
-            PointF pointOnLineDown;
-            LineMethods.LineFit(downPoints.ToArray(), out directionDown, out pointOnLineDown);
-
-            //求焦点
-            PointF? leftTop = LineMethods.FindLineCross(directionLeft, pointOnLineLeft, directionUp, pointOnLineUp);
-            PointF? rightTop = LineMethods.FindLineCross(directionRight, pointOnLineRight, directionUp, pointOnLineUp);
-            PointF? leftDown = LineMethods.FindLineCross(directionLeft, pointOnLineLeft, directionDown, pointOnLineDown);
-            PointF? rightDown = LineMethods.FindLineCross(directionRight, pointOnLineRight, directionDown, pointOnLineDown);
-
-            Emgu.CV.Image<Rgb, Byte> im2 = cannyEdges.ToImage<Rgb, Byte>();
-            Mat twoImage2 = im2.Mat;
-            CvInvoke.Line(twoImage2, new System.Drawing.Point((int)leftTop.Value.X, (int)leftTop.Value.Y), new System.Drawing.Point((int)rightTop.Value.X, (int)rightTop.Value.Y), new MCvScalar(0, 255, 0), 1);
-            CvInvoke.Line(twoImage2, new System.Drawing.Point((int)leftDown.Value.X, (int)leftDown.Value.Y), new System.Drawing.Point((int)rightDown.Value.X, (int)rightDown.Value.Y), new MCvScalar(0, 255, 0), 1);
-            CvInvoke.Line(twoImage2, new System.Drawing.Point((int)leftTop.Value.X, (int)leftTop.Value.Y), new System.Drawing.Point((int)leftDown.Value.X, (int)leftDown.Value.Y), new MCvScalar(0, 255, 0), 1);
-            CvInvoke.Line(twoImage2, new System.Drawing.Point((int)rightTop.Value.X, (int)rightTop.Value.Y), new System.Drawing.Point((int)rightDown.Value.X, (int)rightDown.Value.Y), new MCvScalar(0, 255, 0), 1);
-            imageCannyAndLine.Image = twoImage2;
             #endregion
         }
 
