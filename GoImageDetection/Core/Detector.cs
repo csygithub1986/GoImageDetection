@@ -554,8 +554,12 @@ namespace GoImageDetection.Core
         /// 因为如果一边偏宽，那么它会使它两边的格子不均匀，所以顶点如果不方正，后面的找全部坐标考虑矫正，如果矫正效果不好，考虑放弃不方正的顶角。（待定）
         /// </summary>
         /// <returns>从左上角顺时针的点</returns>
-        private PointF[] FindConor()
+        private PointF[] FindConor(out PointF directionLeft, out PointF directionRight, out PointF directionUp, out PointF directionDown)
         {
+            directionLeft = PointF.Empty;
+            directionRight = PointF.Empty;
+            directionUp = PointF.Empty;
+            directionDown = PointF.Empty;
             List<PointF> leftPoints = new List<PointF>();
             if (CrossPoints.Keys.Contains(CrossType.Left))
             {
@@ -568,7 +572,6 @@ namespace GoImageDetection.Core
             {
                 return null;
             }
-            PointF directionLeft;
             PointF pointOnLineLeft;
             LineMethods.LineFit(leftPoints.ToArray(), out directionLeft, out pointOnLineLeft);
 
@@ -584,7 +587,6 @@ namespace GoImageDetection.Core
             {
                 return null;
             }
-            PointF directionRight;
             PointF pointOnLineRight;
             LineMethods.LineFit(rightPoints.ToArray(), out directionRight, out pointOnLineRight);
 
@@ -615,7 +617,6 @@ namespace GoImageDetection.Core
                 return null;
             }
 
-            PointF directionUp;
             PointF pointOnLineUp;
             LineMethods.LineFit(upPoints.ToArray(), out directionUp, out pointOnLineUp);
 
@@ -646,7 +647,6 @@ namespace GoImageDetection.Core
                 return null;
             }
 
-            PointF directionDown;
             PointF pointOnLineDown;
             LineMethods.LineFit(downPoints.ToArray(), out directionDown, out pointOnLineDown);//拟合
 
@@ -662,6 +662,111 @@ namespace GoImageDetection.Core
             PointF[] result = new PointF[] { leftTop.Value, rightTop.Value, rightDown.Value, leftDown.Value };
             return result;
         }
+
+        //通过四个角，矫正获得等分点
+        private void GetEvenDevidePoint(PointF[] conors, PointF directionLeft, PointF directionRight, PointF directionUp, PointF directionDown, out LineSegment2DF[] horizontalLines, out LineSegment2DF[] verticalLines)
+        {
+            PointF leftTop = conors[0];
+            PointF rightTop = conors[1];
+            PointF rightDown = conors[2];
+            PointF leftDown = conors[3];
+
+            PointF[] upPoints = null;
+            PointF[] downPoints = null;
+            PointF[] leftPoints = null;
+            PointF[] rightPoints = null;
+
+            horizontalLines = null;
+            verticalLines = null;
+            //分三种情况：1、都不平行。2、有一对平行。3、都平行
+            //平行的判定条件，tanα <0.005
+            float parallelAngle = 0.005f;
+
+            float tanUp = directionUp.Y / directionUp.X; //已考虑除数不会为零
+            float tanDown = directionDown.Y / directionDown.X;
+            bool horizontalParallel = Math.Abs((tanUp - tanDown) / (1 + tanUp * tanDown)) < parallelAngle; //判断上下是否平行，根据三角公式tan(a-b)
+
+            float tanLeft = directionLeft.X / directionLeft.Y;
+            float tanRight = directionRight.X / directionRight.Y;
+            bool verticalParallel = Math.Abs((tanLeft - tanRight) / (1 + tanLeft * tanRight)) < parallelAngle;  //判断左右是否平行
+
+            if (horizontalParallel)
+            {
+                upPoints = new PointF[boardSize];
+                for (int i = 0; i < boardSize; i++)
+                {
+                    leftPoints[i] = new PointF();
+                    leftPoints[i].X = leftTop.X + (rightTop.X - leftTop.X) * i / (boardSize - 1);
+                    leftPoints[i].Y = leftTop.Y + (rightTop.Y - leftTop.Y) * i / (boardSize - 1);
+                }
+                downPoints = new PointF[boardSize];
+                for (int i = 0; i < boardSize; i++)
+                {
+                    rightPoints[i] = new PointF();
+                    rightPoints[i].X = leftDown.X + (rightDown.X - leftDown.X) * i / (boardSize - 1);
+                    rightPoints[i].Y = leftDown.Y + (rightDown.Y - leftDown.Y) * i / (boardSize - 1);
+                }
+                verticalLines = new LineSegment2DF[boardSize];
+                for (int i = 0; i < boardSize; i++)
+                {
+                    verticalLines[i] = new LineSegment2DF(upPoints[i], downPoints[i]);
+                }
+            }
+            if (verticalParallel)
+            {
+                leftPoints = new PointF[boardSize];
+                for (int i = 0; i < boardSize; i++)
+                {
+                    leftPoints[i] = new PointF();
+                    leftPoints[i].X = leftTop.X + (leftDown.X - leftTop.X) * i / (boardSize - 1);
+                    leftPoints[i].Y = leftTop.Y + (leftDown.Y - leftTop.Y) * i / (boardSize - 1);
+                }
+                rightPoints = new PointF[boardSize];
+                for (int i = 0; i < boardSize; i++)
+                {
+                    rightPoints[i] = new PointF();
+                    rightPoints[i].X = rightTop.X + (rightDown.X - rightTop.X) * i / (boardSize - 1);
+                    rightPoints[i].Y = rightTop.Y + (rightDown.Y - rightTop.Y) * i / (boardSize - 1);
+                }
+                horizontalLines = new LineSegment2DF[boardSize];
+                for (int i = 0; i < boardSize; i++)
+                {
+                    horizontalLines[i] = new LineSegment2DF(leftPoints[i], rightPoints[i]);
+                }
+            }
+            if (horizontalParallel && !verticalParallel)
+            {
+                leftPoints = new PointF[boardSize];
+                rightPoints = new PointF[boardSize];
+                leftPoints[0] = leftTop;
+                leftPoints[boardSize - 1] = leftDown;
+                rightPoints[0] = rightTop;
+                rightPoints[boardSize - 1] = rightDown;
+                horizontalLines = new LineSegment2DF[boardSize];
+                //渐进作对角线，这样点在两边，会准确一点。如果
+                for (int i = 0; i < boardSize / 2; i++)
+                {
+                    LineSegment2DF diagonalLineUp1 = new LineSegment2DF(leftPoints[i], downPoints[boardSize - i]);
+                    LineSegment2DF diagonalLineUp2 = new LineSegment2DF(rightPoints[i], downPoints[i]);
+
+                    //LineSegment2DF diagonalLineDown1 = new LineSegment2DF(leftPoints[i], downPoints[boardSize - i]);
+                    //LineSegment2DF diagonalLineDown2 = new LineSegment2DF(leftPoints[i], downPoints[boardSize - i]);
+                }
+                horizontalLines[0] = new LineSegment2DF(leftPoints[i], rightPoints[i]);
+            }
+            if (verticalParallel && !horizontalParallel)
+            {
+
+            }
+            if (!horizontalParallel && !verticalParallel)
+            {
+
+            }
+
+
+            //1.寻找两个边的交点
+        }
+
 
         private Point[] CalculateAllCoordinate(PointF[] conors)
         {
