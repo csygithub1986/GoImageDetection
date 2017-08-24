@@ -96,12 +96,19 @@ namespace GoImageDetection.Core
 
 
             //找交点
-            conors = FindConor();
+            PointF directionLeft = PointF.Empty;
+            PointF directionRight = PointF.Empty;
+            PointF directionUp = PointF.Empty;
+            PointF directionDown = PointF.Empty;
+            conors = FindConor(out directionLeft, out directionRight, out directionUp, out directionDown);
             if (conors == null)
             {
                 return null;
             }
 
+            //TODO：加入矫正
+
+            //未校正之前不做一下操作
             allCoordinate = CalculateAllCoordinate(conors);
 
             int[] stones = new int[boardSize * boardSize];
@@ -663,13 +670,13 @@ namespace GoImageDetection.Core
             return result;
         }
 
-        //通过四个角，矫正获得等分点
+        //通过四个角，矫正获得等分线
         private void GetEvenDevidePoint(PointF[] conors, PointF directionLeft, PointF directionRight, PointF directionUp, PointF directionDown, out LineSegment2DF[] horizontalLines, out LineSegment2DF[] verticalLines)
         {
-            PointF leftTop = conors[0];
-            PointF rightTop = conors[1];
-            PointF rightDown = conors[2];
-            PointF leftDown = conors[3];
+            PointF leftUpPoint = conors[0];
+            PointF rightUpPoint = conors[1];
+            PointF rightDownPoint = conors[2];
+            PointF leftDownPoint = conors[3];
 
             PointF[] upPoints = null;
             PointF[] downPoints = null;
@@ -696,15 +703,15 @@ namespace GoImageDetection.Core
                 for (int i = 0; i < boardSize; i++)
                 {
                     leftPoints[i] = new PointF();
-                    leftPoints[i].X = leftTop.X + (rightTop.X - leftTop.X) * i / (boardSize - 1);
-                    leftPoints[i].Y = leftTop.Y + (rightTop.Y - leftTop.Y) * i / (boardSize - 1);
+                    leftPoints[i].X = leftUpPoint.X + (rightUpPoint.X - leftUpPoint.X) * i / (boardSize - 1);
+                    leftPoints[i].Y = leftUpPoint.Y + (rightUpPoint.Y - leftUpPoint.Y) * i / (boardSize - 1);
                 }
                 downPoints = new PointF[boardSize];
                 for (int i = 0; i < boardSize; i++)
                 {
                     rightPoints[i] = new PointF();
-                    rightPoints[i].X = leftDown.X + (rightDown.X - leftDown.X) * i / (boardSize - 1);
-                    rightPoints[i].Y = leftDown.Y + (rightDown.Y - leftDown.Y) * i / (boardSize - 1);
+                    rightPoints[i].X = leftDownPoint.X + (rightDownPoint.X - leftDownPoint.X) * i / (boardSize - 1);
+                    rightPoints[i].Y = leftDownPoint.Y + (rightDownPoint.Y - leftDownPoint.Y) * i / (boardSize - 1);
                 }
                 verticalLines = new LineSegment2DF[boardSize];
                 for (int i = 0; i < boardSize; i++)
@@ -718,15 +725,15 @@ namespace GoImageDetection.Core
                 for (int i = 0; i < boardSize; i++)
                 {
                     leftPoints[i] = new PointF();
-                    leftPoints[i].X = leftTop.X + (leftDown.X - leftTop.X) * i / (boardSize - 1);
-                    leftPoints[i].Y = leftTop.Y + (leftDown.Y - leftTop.Y) * i / (boardSize - 1);
+                    leftPoints[i].X = leftUpPoint.X + (leftDownPoint.X - leftUpPoint.X) * i / (boardSize - 1);
+                    leftPoints[i].Y = leftUpPoint.Y + (leftDownPoint.Y - leftUpPoint.Y) * i / (boardSize - 1);
                 }
                 rightPoints = new PointF[boardSize];
                 for (int i = 0; i < boardSize; i++)
                 {
                     rightPoints[i] = new PointF();
-                    rightPoints[i].X = rightTop.X + (rightDown.X - rightTop.X) * i / (boardSize - 1);
-                    rightPoints[i].Y = rightTop.Y + (rightDown.Y - rightTop.Y) * i / (boardSize - 1);
+                    rightPoints[i].X = rightUpPoint.X + (rightDownPoint.X - rightUpPoint.X) * i / (boardSize - 1);
+                    rightPoints[i].Y = rightUpPoint.Y + (rightDownPoint.Y - rightUpPoint.Y) * i / (boardSize - 1);
                 }
                 horizontalLines = new LineSegment2DF[boardSize];
                 for (int i = 0; i < boardSize; i++)
@@ -738,33 +745,91 @@ namespace GoImageDetection.Core
             {
                 leftPoints = new PointF[boardSize];
                 rightPoints = new PointF[boardSize];
-                leftPoints[0] = leftTop;
-                leftPoints[boardSize - 1] = leftDown;
-                rightPoints[0] = rightTop;
-                rightPoints[boardSize - 1] = rightDown;
+                leftPoints[0] = leftUpPoint;
+                leftPoints[boardSize - 1] = leftDownPoint;
+                rightPoints[0] = rightUpPoint;
+                rightPoints[boardSize - 1] = rightDownPoint;
                 horizontalLines = new LineSegment2DF[boardSize];
-                //渐进作对角线，这样点在两边，会准确一点。如果
-                for (int i = 0; i < boardSize / 2; i++)
+                horizontalLines[0] = new LineSegment2DF(leftPoints[0], rightPoints[0]);//顶线
+                horizontalLines[boardSize - 1] = new LineSegment2DF(leftPoints[boardSize - 1], rightPoints[boardSize - 1]);//底线
+                //渐进作对角线，这样点在两边，会准确一点。如果boardsize(n)是偶数，n/2成为下部的第一条线，如果是奇数，n/2为中线
+                //从上面画线时，都从1画到n/2-1，从下面画线时，从n-2画到n/2。当奇偶不同时，从下划线条数不同，但代码一致。
+                for (int i = 0; i < boardSize / 2 - 1; i++)
                 {
+                    //从左上和右上开始，往对边画对角线，然后求平行的第1、2...n/2-1条线
                     LineSegment2DF diagonalLineUp1 = new LineSegment2DF(leftPoints[i], downPoints[boardSize - i]);
                     LineSegment2DF diagonalLineUp2 = new LineSegment2DF(rightPoints[i], downPoints[i]);
-
-                    //LineSegment2DF diagonalLineDown1 = new LineSegment2DF(leftPoints[i], downPoints[boardSize - i]);
-                    //LineSegment2DF diagonalLineDown2 = new LineSegment2DF(leftPoints[i], downPoints[boardSize - i]);
+                    //和第1,n-2条垂直线交点
+                    PointF pLeft = (PointF)LineMethods.FindLineCross(diagonalLineUp1.Direction, diagonalLineUp1.P1, verticalLines[1].Direction, verticalLines[1].P1);
+                    PointF pRight = (PointF)LineMethods.FindLineCross(diagonalLineUp2.Direction, diagonalLineUp2.P1, verticalLines[boardSize - 2].Direction, verticalLines[1].P1);
+                    horizontalLines[i + 1] = new LineSegment2DF(pLeft, pRight);
+                    leftPoints[i + 1] = (PointF)LineMethods.FindLineCross(horizontalLines[i + 1].Direction, pLeft, verticalLines[0].Direction, verticalLines[0].P1);
+                    rightPoints[i + 1] = (PointF)LineMethods.FindLineCross(horizontalLines[i + 1].Direction, pRight, verticalLines[boardSize - 1].Direction, verticalLines[boardSize - 1].P1);
                 }
-                horizontalLines[0] = new LineSegment2DF(leftPoints[i], rightPoints[i]);
+                for (int i = boardSize - 1; i > boardSize / 2; i--)
+                {
+                    //从左下和右下开始，往对边画对角线，然后求平行的第n-2、n-3..n/2条线
+                    LineSegment2DF diagonalLineDown1 = new LineSegment2DF(leftPoints[i], upPoints[i]);
+                    LineSegment2DF diagonalLineDown2 = new LineSegment2DF(rightPoints[i], upPoints[boardSize - 1 - i]);
+                    //和第1,n-2条垂直线交点
+                    PointF pLeft = (PointF)LineMethods.FindLineCross(diagonalLineDown1.Direction, diagonalLineDown1.P1, verticalLines[1].Direction, verticalLines[1].P1);
+                    PointF pRight = (PointF)LineMethods.FindLineCross(diagonalLineDown2.Direction, diagonalLineDown2.P1, verticalLines[boardSize - 2].Direction, verticalLines[1].P1);
+                    horizontalLines[i - 1] = new LineSegment2DF(pLeft, pRight);
+                    leftPoints[i - 1] = (PointF)LineMethods.FindLineCross(horizontalLines[i - 1].Direction, pLeft, verticalLines[0].Direction, verticalLines[0].P1);
+                    rightPoints[i - 1] = (PointF)LineMethods.FindLineCross(horizontalLines[i - 1].Direction, pRight, verticalLines[boardSize - 1].Direction, verticalLines[boardSize - 1].P1);
+                }
             }
             if (verticalParallel && !horizontalParallel)
             {
-
+                upPoints = new PointF[boardSize];
+                downPoints = new PointF[boardSize];
+                upPoints[0] = leftUpPoint;
+                upPoints[boardSize - 1] = rightUpPoint;
+                downPoints[0] = leftDownPoint;
+                downPoints[boardSize - 1] = rightDownPoint;
+                verticalLines = new LineSegment2DF[boardSize];
+                verticalLines[0] = new LineSegment2DF(upPoints[0], downPoints[0]);//左线
+                verticalLines[boardSize - 1] = new LineSegment2DF(upPoints[boardSize - 1], downPoints[boardSize - 1]);//右线
+                //渐进作对角线，这样点在两边，会准确一点。如果boardsize(n)是偶数，n/2成为下部的第一条线，如果是奇数，n/2为中线
+                //从上面画线时，都从1画到n/2-1，从下面画线时，从n-2画到n/2。当奇偶不同时，从下划线条数不同，但代码一致。
+                for (int i = 0; i < boardSize / 2 - 1; i++)
+                {
+                    //从左上和右上开始，往对边画对角线，然后求平行的第1、2...n/2-1条线
+                    LineSegment2DF diagonalLineLeft1 = new LineSegment2DF(upPoints[i], rightPoints[boardSize - i]);
+                    LineSegment2DF diagonalLineLeft2 = new LineSegment2DF(downPoints[i], rightPoints[i]);
+                    //和第1,n-2条平行线交点
+                    PointF pUp = (PointF)LineMethods.FindLineCross(diagonalLineLeft1.Direction, diagonalLineLeft1.P1, horizontalLines[1].Direction, horizontalLines[1].P1);
+                    PointF pDown = (PointF)LineMethods.FindLineCross(diagonalLineLeft2.Direction, diagonalLineLeft2.P1, horizontalLines[boardSize - 2].Direction, horizontalLines[1].P1);
+                    verticalLines[i + 1] = new LineSegment2DF(pUp, pDown);
+                    upPoints[i + 1] = (PointF)LineMethods.FindLineCross(verticalLines[i + 1].Direction, pUp, horizontalLines[0].Direction, horizontalLines[0].P1);
+                    downPoints[i + 1] = (PointF)LineMethods.FindLineCross(verticalLines[i + 1].Direction, pDown, horizontalLines[boardSize - 1].Direction, horizontalLines[boardSize - 1].P1);
+                }
+                for (int i = boardSize - 1; i > boardSize / 2; i--)
+                {
+                    //从左下和右下开始，往对边画对角线，然后求平行的第n-2、n-3..n/2条线
+                    LineSegment2DF diagonalLineRight1 = new LineSegment2DF(upPoints[i], leftPoints[i]);
+                    LineSegment2DF diagonalLineRight2 = new LineSegment2DF(downPoints[i], leftPoints[boardSize - 1 - i]);
+                    //和第1,n-2条垂直线交点
+                    PointF pUp = (PointF)LineMethods.FindLineCross(diagonalLineRight1.Direction, diagonalLineRight1.P1, horizontalLines[1].Direction, horizontalLines[1].P1);
+                    PointF pDown = (PointF)LineMethods.FindLineCross(diagonalLineRight2.Direction, diagonalLineRight2.P1, horizontalLines[boardSize - 2].Direction, horizontalLines[1].P1);
+                    verticalLines[i - 1] = new LineSegment2DF(pUp, pDown);
+                    upPoints[i - 1] = (PointF)LineMethods.FindLineCross(verticalLines[i - 1].Direction, pUp, horizontalLines[0].Direction, horizontalLines[0].P1);
+                    downPoints[i - 1] = (PointF)LineMethods.FindLineCross(verticalLines[i - 1].Direction, pDown, horizontalLines[boardSize - 1].Direction, horizontalLines[boardSize - 1].P1);
+                }
             }
             if (!horizontalParallel && !verticalParallel)
             {
-
+                //1.寻找两个边的交点，及上平行线
+                PointF horizontalCross = (PointF)LineMethods.FindLineCross(directionUp, leftUpPoint, directionDown, leftDownPoint);  //水平相交点
+                PointF verticalCross = (PointF)LineMethods.FindLineCross(directionLeft, leftUpPoint, directionRight, rightUpPoint);  //垂直相交点
+                LineSegment2DF l1 = new LineSegment2DF(horizontalCross, verticalCross);
+                //2、过任意一点作l1的平行线 （找leftUpPoint和距leftUpPoint距离为1000的一点）
+                PointF pointOnL2 = new PointF(leftUpPoint.X + 1000 * l1.Direction.X, leftUpPoint.Y + 1000 * l1.Direction.Y);
+                LineSegment2DF l2 = new LineSegment2DF(leftUpPoint, pointOnL2);
+                //TODO:
+                //3、让两边交于l2，并平分
+                //4、作平分点和顶点交点连线，这些连线就是中间的格子线。
             }
-
-
-            //1.寻找两个边的交点
         }
 
 
