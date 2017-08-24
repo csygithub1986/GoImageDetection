@@ -51,7 +51,7 @@ namespace GoImageDetection
         #endregion
 
         Detector detector;
-
+        Bitmap _bitmap;
         public MainWindow()
         {
             InitializeComponent();
@@ -91,8 +91,8 @@ namespace GoImageDetection
             crossFillRate = double.Parse(txtCrossFillRate.Text);
 
             detector = new Detector(crossFillRate);
-            Bitmap bitmap = new Bitmap(fileNameTextBox.Text);//加载图片
-            int[] finalResult = detector.Detect(bitmap, 19);//检测，完成后detector中带有Circles和CrossPoints信息
+            _bitmap = new Bitmap(fileNameTextBox.Text);//加载图片
+            int[] finalResult = detector.Detect(_bitmap, 19);//检测，完成后detector中带有Circles和CrossPoints信息
 
             //绘制灰度图
             //Image<Bgr, Byte> img = new Image<Bgr, byte>(bitmap);
@@ -175,14 +175,15 @@ namespace GoImageDetection
             #region imageFinal
             if (finalResult != null)
             {
-                Emgu.CV.Image<Rgb, Byte> imFinal = cannyEdges.ToImage<Rgb, Byte>();
-                Mat matFinal = imFinal.Mat;
+                //Emgu.CV.Image<Rgb, Byte> imFinal = cannyEdges.ToImage<Rgb, Byte>();
+                Image<Bgr, Byte> img = new Image<Bgr, byte>(_bitmap);
+                Mat matFinal = img.Mat;
                 for (int i = 0; i < finalResult.Length; i++)
                 {
-                    //if (finalResult[i] > 0)
+                    if (finalResult[i] > 0)
                     {
-                        //CvInvoke.Circle(matFinal, detector.allCoordinate[i], detector.minGridWidth / 2, new Bgr(System.Drawing.Color.DarkGreen ).MCvScalar, 5);
-                        CvInvoke.Circle(matFinal, detector.allCoordinate[i], 5, new Bgr(System.Drawing.Color.DarkGreen ).MCvScalar, 3);
+                        CvInvoke.Circle(matFinal, detector.allCoordinate[i], detector.minGridWidth / 2, new Bgr(finalResult[i] == 2 ? System.Drawing.Color.Green : System.Drawing.Color.Red).MCvScalar, 5);
+                        //CvInvoke.Circle(matFinal, detector.allCoordinate[i], 5, new Bgr(System.Drawing.Color.DarkGreen ).MCvScalar, 3);
                     }
                 }
                 imageFinal.Image = matFinal;

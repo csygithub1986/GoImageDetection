@@ -115,7 +115,7 @@ namespace GoImageDetection.Core
             int[] stones = new int[boardSize * boardSize];
             for (int i = 0; i < stones.Length; i++)
             {
-                stones[i] = FindStone(allCoordinate[i].X, allCoordinate[i].Y);
+                stones[i] = FindStone(i);
             }
             return stones;
         }
@@ -764,7 +764,7 @@ namespace GoImageDetection.Core
                     LineSegment2DF diagonalLineUp2 = new LineSegment2DF(rightPoints[i], downPoints[i]);
                     //和第1,n-2条垂直线交点
                     PointF pLeft = (PointF)LineMethods.FindLineCross(diagonalLineUp1.Direction, diagonalLineUp1.P1, verticalLines[1].Direction, verticalLines[1].P1);
-                    PointF pRight = (PointF)LineMethods.FindLineCross(diagonalLineUp2.Direction, diagonalLineUp2.P1, verticalLines[boardSize - 2].Direction, verticalLines[1].P1);
+                    PointF pRight = (PointF)LineMethods.FindLineCross(diagonalLineUp2.Direction, diagonalLineUp2.P1, verticalLines[boardSize - 2].Direction, verticalLines[boardSize - 2].P1);
                     horizontalLines[i + 1] = new LineSegment2DF(pLeft, pRight);
                     leftPoints[i + 1] = (PointF)LineMethods.FindLineCross(horizontalLines[i + 1].Direction, pLeft, verticalLines[0].Direction, verticalLines[0].P1);
                     rightPoints[i + 1] = (PointF)LineMethods.FindLineCross(horizontalLines[i + 1].Direction, pRight, verticalLines[boardSize - 1].Direction, verticalLines[boardSize - 1].P1);
@@ -776,7 +776,7 @@ namespace GoImageDetection.Core
                     LineSegment2DF diagonalLineDown2 = new LineSegment2DF(rightPoints[i], upPoints[boardSize - 1 - i]);
                     //和第1,n-2条垂直线交点
                     PointF pLeft = (PointF)LineMethods.FindLineCross(diagonalLineDown1.Direction, diagonalLineDown1.P1, verticalLines[1].Direction, verticalLines[1].P1);
-                    PointF pRight = (PointF)LineMethods.FindLineCross(diagonalLineDown2.Direction, diagonalLineDown2.P1, verticalLines[boardSize - 2].Direction, verticalLines[1].P1);
+                    PointF pRight = (PointF)LineMethods.FindLineCross(diagonalLineDown2.Direction, diagonalLineDown2.P1, verticalLines[boardSize - 2].Direction, verticalLines[boardSize - 2].P1);
                     horizontalLines[i - 1] = new LineSegment2DF(pLeft, pRight);
                     leftPoints[i - 1] = (PointF)LineMethods.FindLineCross(horizontalLines[i - 1].Direction, pLeft, verticalLines[0].Direction, verticalLines[0].P1);
                     rightPoints[i - 1] = (PointF)LineMethods.FindLineCross(horizontalLines[i - 1].Direction, pRight, verticalLines[boardSize - 1].Direction, verticalLines[boardSize - 1].P1);
@@ -799,7 +799,7 @@ namespace GoImageDetection.Core
                     LineSegment2DF diagonalLineLeft2 = new LineSegment2DF(downPoints[i], rightPoints[i]);
                     //和第1,n-2条平行线交点
                     PointF pUp = (PointF)LineMethods.FindLineCross(diagonalLineLeft1.Direction, diagonalLineLeft1.P1, horizontalLines[1].Direction, horizontalLines[1].P1);
-                    PointF pDown = (PointF)LineMethods.FindLineCross(diagonalLineLeft2.Direction, diagonalLineLeft2.P1, horizontalLines[boardSize - 2].Direction, horizontalLines[1].P1);
+                    PointF pDown = (PointF)LineMethods.FindLineCross(diagonalLineLeft2.Direction, diagonalLineLeft2.P1, horizontalLines[boardSize - 2].Direction, horizontalLines[boardSize - 2].P1);
                     verticalLines[i + 1] = new LineSegment2DF(pUp, pDown);
                     upPoints[i + 1] = (PointF)LineMethods.FindLineCross(verticalLines[i + 1].Direction, pUp, horizontalLines[0].Direction, horizontalLines[0].P1);
                     downPoints[i + 1] = (PointF)LineMethods.FindLineCross(verticalLines[i + 1].Direction, pDown, horizontalLines[boardSize - 1].Direction, horizontalLines[boardSize - 1].P1);
@@ -811,7 +811,7 @@ namespace GoImageDetection.Core
                     LineSegment2DF diagonalLineRight2 = new LineSegment2DF(downPoints[i], leftPoints[boardSize - 1 - i]);
                     //和第1,n-2条垂直线交点
                     PointF pUp = (PointF)LineMethods.FindLineCross(diagonalLineRight1.Direction, diagonalLineRight1.P1, horizontalLines[1].Direction, horizontalLines[1].P1);
-                    PointF pDown = (PointF)LineMethods.FindLineCross(diagonalLineRight2.Direction, diagonalLineRight2.P1, horizontalLines[boardSize - 2].Direction, horizontalLines[1].P1);
+                    PointF pDown = (PointF)LineMethods.FindLineCross(diagonalLineRight2.Direction, diagonalLineRight2.P1, horizontalLines[boardSize - 2].Direction, horizontalLines[boardSize - 2].P1);
                     verticalLines[i - 1] = new LineSegment2DF(pUp, pDown);
                     upPoints[i - 1] = (PointF)LineMethods.FindLineCross(verticalLines[i - 1].Direction, pUp, horizontalLines[0].Direction, horizontalLines[0].P1);
                     downPoints[i - 1] = (PointF)LineMethods.FindLineCross(verticalLines[i - 1].Direction, pDown, horizontalLines[boardSize - 1].Direction, horizontalLines[boardSize - 1].P1);
@@ -913,13 +913,15 @@ namespace GoImageDetection.Core
         /// <summary>
         /// 找棋子
         /// </summary>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
         /// <returns>0:empty，1:black，2:white，-1:错误</returns>
-        private int FindStone(int x, int y)
+        private int FindStone(int index)
         {
+            int indexX = index % boardSize;
+            int indexY = index / boardSize;
+
+            int x = allCoordinate[index].X;
+            int y = allCoordinate[index].Y;
             byte[] imageByte = cannyEdges.Bytes;//如果直接随机访问cannyEdges.Bytes中的元素，会非常耗时
-            Console.Write("FindStone    ");
             //下面三种方法，可信度从高到低
             #region 先找xy附近25%最大格宽是否有圆，然后圆内的灰度大于平均值（这里简单认为是128，或0.5）则是黑棋，小于则是白棋
             {
@@ -928,14 +930,18 @@ namespace GoImageDetection.Core
                 int maxX = x + maxGridWidth / 4;
                 maxX = maxX >= imageSize ? imageSize - 1 : maxX;
 
-                int minY = x - maxGridWidth / 4;
+                int minY = y - maxGridWidth / 4;
                 minY = minY < 0 ? 0 : minY;
-                int maxY = x + maxGridWidth / 4;
+                int maxY = y + maxGridWidth / 4;
                 maxY = maxY >= imageSize ? imageSize - 1 : maxY;
 
                 CircleF circleStone = new CircleF(PointF.Empty, 0);
                 foreach (var circle in Circles)
                 {
+                    //if (index==2)
+                    //{
+
+                    //}
                     if (circle.Center.X >= minX && circle.Center.X <= maxX && circle.Center.Y >= minY && circle.Center.Y <= maxY)
                     {
                         circleStone = circle;
@@ -965,7 +971,12 @@ namespace GoImageDetection.Core
                     if ((float)blackCount / totalCannyCount >= 0.99)
                     {
                         circleStone = new CircleF(new PointF(x, y), littleRadius);
+                        Console.Write("无圆但中心空洞   ");
                     }
+                }
+                else
+                {
+                    Console.Write("有圆   ");
                 }
 
                 if (circleStone.Radius != 0)
@@ -988,12 +999,16 @@ namespace GoImageDetection.Core
                         }
                     }
                     float averageGray = totalGray / totalCount;
-                    if (averageGray > 0.5)
+                    if (averageGray > 0.45)
                     {
+                        Console.Write("  为白" + "  灰度" + averageGray.ToString("F2"));
+                        Console.WriteLine("  (" + indexX + "," + indexY + ")");
                         return 2;//白
                     }
-                    else if (averageGray < 0.5)
+                    else if (averageGray < 0.45)
                     {
+                        Console.Write("  为黑" + "  灰度" + averageGray.ToString("F2"));
+                        Console.WriteLine("  (" + indexX + "," + indexY + ")");
                         return 1;//黑
                     }
                     else
@@ -1007,8 +1022,6 @@ namespace GoImageDetection.Core
 
             #region 再找xy附近10%最大格宽是否有十字，如果有，则为空
             {
-                Console.WriteLine("找十字    ");
-
                 int minX = x - maxGridWidth / 10;
                 minX = minX < 0 ? 0 : minX;
                 int maxX = x + maxGridWidth / 10;
@@ -1026,6 +1039,8 @@ namespace GoImageDetection.Core
                         CrossType type = GetCrossFromCenter(imageSize, imageByte, i, j);
                         if (type == CrossType.Center)
                         {
+                            Console.Write("  找到十字");
+                            Console.WriteLine("  (" + indexX + "," + indexY + ")");
                             return 0;//空
                         }
                     }
@@ -1035,7 +1050,6 @@ namespace GoImageDetection.Core
 
             #region 如果既无圆也无十字，最后对0.4倍最小格宽为半径的圆求灰度，如果灰度<0.2或者>0.75（数值待定），之间则为空
             {
-                Console.WriteLine("最后小圆    ");
                 float totalGray = 0;
                 int totalCount = 0;
                 float littleRadius = 0.4f * minGridWidth;
@@ -1055,16 +1069,22 @@ namespace GoImageDetection.Core
                     }
                 }
                 float averageGray = totalGray / totalCount;
-                if (averageGray > 0.75)
+                if (averageGray > 0.75)//白的灰度一般在0.6以上
                 {
+                    Console.Write("  强行灰度为白" + "  灰度" + averageGray.ToString("F2"));
+                    Console.WriteLine("  (" + indexX + "," + indexY + ")");
                     return 2;//白
                 }
-                else if (averageGray < 0.2)
+                else if (averageGray < 0.15)//黑的灰度一般在0.2以下
                 {
+                    Console.Write("  强行灰度为黑" + "  灰度" + averageGray.ToString("F2"));
+                    Console.WriteLine("  (" + indexX + "," + indexY + ")");
                     return 1;//黑
                 }
                 else
                 {
+                    //Console.Write("  强行灰度为空");
+                    //Console.WriteLine("  (" + indexX + 1 + "," + indexY + 1 + ")");
                     return 0;//空
                 }
             }
