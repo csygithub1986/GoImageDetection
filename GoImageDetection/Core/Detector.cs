@@ -845,7 +845,7 @@ namespace GoImageDetection.Core
                     PointF gridPoint = new PointF();
                     gridPoint.X = end3.X + (end4.X - end3.X) * i / (boardSize - 1);
                     gridPoint.Y = end3.Y + (end4.Y - end3.Y) * i / (boardSize - 1);
-                    verticalLines[i] = new LineSegment2DF(horizontalCross, gridPoint);
+                    verticalLines[i] = new LineSegment2DF(verticalCross, gridPoint);
                 }
                 //妹的，怎么有一边平行的反而算法和代码更复杂
             }
