@@ -181,7 +181,8 @@ namespace GoImageDetection
                 {
                     //if (finalResult[i] > 0)
                     {
-                        CvInvoke.Circle(matFinal, detector.allCoordinate[i], detector.minGridWidth / 2, new Bgr(System.Drawing.Color.DarkGreen ).MCvScalar, 5);
+                        //CvInvoke.Circle(matFinal, detector.allCoordinate[i], detector.minGridWidth / 2, new Bgr(System.Drawing.Color.DarkGreen ).MCvScalar, 5);
+                        CvInvoke.Circle(matFinal, detector.allCoordinate[i], 5, new Bgr(System.Drawing.Color.DarkGreen ).MCvScalar, 3);
                     }
                 }
                 imageFinal.Image = matFinal;

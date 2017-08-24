@@ -106,10 +106,11 @@ namespace GoImageDetection.Core
                 return null;
             }
 
-            //TODO：加入矫正
+            LineSegment2DF[] horizontalLines = null;
+            LineSegment2DF[] verticalLines = null;
+            GetEvenDevideLines(conors, directionLeft, directionRight, directionUp, directionDown, out horizontalLines, out verticalLines);
+            allCoordinate = GetGridCoordinate(horizontalLines, verticalLines);
 
-            //未校正之前不做一下操作
-            allCoordinate = CalculateAllCoordinate(conors);
 
             int[] stones = new int[boardSize * boardSize];
             for (int i = 0; i < stones.Length; i++)
@@ -671,7 +672,7 @@ namespace GoImageDetection.Core
         }
 
         //通过四个角，矫正获得等分线
-        private void GetEvenDevidePoint(PointF[] conors, PointF directionLeft, PointF directionRight, PointF directionUp, PointF directionDown, out LineSegment2DF[] horizontalLines, out LineSegment2DF[] verticalLines)
+        private void GetEvenDevideLines(PointF[] conors, PointF directionLeft, PointF directionRight, PointF directionUp, PointF directionDown, out LineSegment2DF[] horizontalLines, out LineSegment2DF[] verticalLines)
         {
             PointF leftUpPoint = conors[0];
             PointF rightUpPoint = conors[1];
@@ -683,8 +684,13 @@ namespace GoImageDetection.Core
             PointF[] leftPoints = null;
             PointF[] rightPoints = null;
 
-            horizontalLines = null;
-            verticalLines = null;
+            horizontalLines = new LineSegment2DF[boardSize];
+            verticalLines = new LineSegment2DF[boardSize];
+            horizontalLines[0] = new LineSegment2DF(leftUpPoint, rightUpPoint);
+            horizontalLines[boardSize - 1] = new LineSegment2DF(leftDownPoint, rightDownPoint);
+            verticalLines[0] = new LineSegment2DF(leftUpPoint, leftDownPoint);
+            verticalLines[boardSize - 1] = new LineSegment2DF(rightUpPoint, rightDownPoint);
+
             //分三种情况：1、都不平行。2、有一对平行。3、都平行
             //平行的判定条件，tanα <0.005
             float parallelAngle = 0.005f;
@@ -749,9 +755,6 @@ namespace GoImageDetection.Core
                 leftPoints[boardSize - 1] = leftDownPoint;
                 rightPoints[0] = rightUpPoint;
                 rightPoints[boardSize - 1] = rightDownPoint;
-                horizontalLines = new LineSegment2DF[boardSize];
-                horizontalLines[0] = new LineSegment2DF(leftPoints[0], rightPoints[0]);//顶线
-                horizontalLines[boardSize - 1] = new LineSegment2DF(leftPoints[boardSize - 1], rightPoints[boardSize - 1]);//底线
                 //渐进作对角线，这样点在两边，会准确一点。如果boardsize(n)是偶数，n/2成为下部的第一条线，如果是奇数，n/2为中线
                 //从上面画线时，都从1画到n/2-1，从下面画线时，从n-2画到n/2。当奇偶不同时，从下划线条数不同，但代码一致。
                 for (int i = 0; i < boardSize / 2 - 1; i++)
@@ -787,15 +790,12 @@ namespace GoImageDetection.Core
                 upPoints[boardSize - 1] = rightUpPoint;
                 downPoints[0] = leftDownPoint;
                 downPoints[boardSize - 1] = rightDownPoint;
-                verticalLines = new LineSegment2DF[boardSize];
-                verticalLines[0] = new LineSegment2DF(upPoints[0], downPoints[0]);//左线
-                verticalLines[boardSize - 1] = new LineSegment2DF(upPoints[boardSize - 1], downPoints[boardSize - 1]);//右线
                 //渐进作对角线，这样点在两边，会准确一点。如果boardsize(n)是偶数，n/2成为下部的第一条线，如果是奇数，n/2为中线
                 //从上面画线时，都从1画到n/2-1，从下面画线时，从n-2画到n/2。当奇偶不同时，从下划线条数不同，但代码一致。
                 for (int i = 0; i < boardSize / 2 - 1; i++)
                 {
                     //从左上和右上开始，往对边画对角线，然后求平行的第1、2...n/2-1条线
-                    LineSegment2DF diagonalLineLeft1 = new LineSegment2DF(upPoints[i], rightPoints[boardSize - i]);
+                    LineSegment2DF diagonalLineLeft1 = new LineSegment2DF(upPoints[i], rightPoints[boardSize - 1 - i]);
                     LineSegment2DF diagonalLineLeft2 = new LineSegment2DF(downPoints[i], rightPoints[i]);
                     //和第1,n-2条平行线交点
                     PointF pUp = (PointF)LineMethods.FindLineCross(diagonalLineLeft1.Direction, diagonalLineLeft1.P1, horizontalLines[1].Direction, horizontalLines[1].P1);
@@ -826,13 +826,51 @@ namespace GoImageDetection.Core
                 //2、过任意一点作l1的平行线 （找leftUpPoint和距leftUpPoint距离为1000的一点）
                 PointF pointOnL2 = new PointF(leftUpPoint.X + 1000 * l1.Direction.X, leftUpPoint.Y + 1000 * l1.Direction.Y);
                 LineSegment2DF l2 = new LineSegment2DF(leftUpPoint, pointOnL2);
-                //TODO:
-                //3、让两边交于l2，并平分
-                //4、作平分点和顶点交点连线，这些连线就是中间的格子线。
+                //3、让两边交于l2，并平分，作平分点和顶点交点连线，这些连线就是中间的格子线。
+                //横端
+                PointF end1 = (PointF)LineMethods.FindLineCross(horizontalLines[0].Direction, horizontalLines[0].P1, l2.Direction, l2.P1);
+                PointF end2 = (PointF)LineMethods.FindLineCross(horizontalLines[boardSize - 1].Direction, horizontalLines[boardSize - 1].P1, l2.Direction, l2.P1);
+                for (int i = 1; i < boardSize - 1; i++)
+                {
+                    PointF gridPoint = new PointF();
+                    gridPoint.X = end1.X + (end2.X - end1.X) * i / (boardSize - 1);
+                    gridPoint.Y = end1.Y + (end2.Y - end1.Y) * i / (boardSize - 1);
+                    horizontalLines[i] = new LineSegment2DF(horizontalCross, gridPoint);
+                }
+                //竖端
+                PointF end3 = (PointF)LineMethods.FindLineCross(verticalLines[0].Direction, verticalLines[0].P1, l2.Direction, l2.P1);
+                PointF end4 = (PointF)LineMethods.FindLineCross(verticalLines[boardSize - 1].Direction, verticalLines[boardSize - 1].P1, l2.Direction, l2.P1);
+                for (int i = 1; i < boardSize - 1; i++)
+                {
+                    PointF gridPoint = new PointF();
+                    gridPoint.X = end3.X + (end4.X - end3.X) * i / (boardSize - 1);
+                    gridPoint.Y = end3.Y + (end4.Y - end3.Y) * i / (boardSize - 1);
+                    verticalLines[i] = new LineSegment2DF(horizontalCross, gridPoint);
+                }
+                //妹的，怎么有一边平行的反而算法和代码更复杂
             }
         }
 
+        private Point[] GetGridCoordinate(LineSegment2DF[] horizontalLines, LineSegment2DF[] verticalLines)
+        {
+            Point[] coordinates = new Point[boardSize * boardSize];
+            for (int i = 0; i < boardSize; i++)
+            {
+                for (int j = 0; j < boardSize; j++)
+                {
+                    PointF pointf = (PointF)LineMethods.FindLineCross(verticalLines[i].Direction, verticalLines[i].P1, horizontalLines[j].Direction, horizontalLines[j].P1);
+                    coordinates[i + j * boardSize] = new Point()
+                    {
+                        X = (int)pointf.X + 1,//因为检测的时候都偏小，这里补偿1像素
+                        Y = (int)pointf.Y + 1//因为检测的时候都偏小，这里补偿1像素
+                    };
+                }
+            }
+            return coordinates;
+        }
 
+
+        //没有透视矫正前的求grid点算法，废弃了
         private Point[] CalculateAllCoordinate(PointF[] conors)
         {
             PointF leftTop = conors[0];
@@ -916,8 +954,11 @@ namespace GoImageDetection.Core
                         {
                             if (i * i + j * j < littleRadius * littleRadius)
                             {
-                                totalCannyCount++;
-                                blackCount += imageByte[x + i + (y + j) * imageSize] == 0 ? 1 : 0;
+                                if (x + i >= 0 && x + i < bitmap.Width && y + j >= 0 && y + j < bitmap.Height)
+                                {
+                                    totalCannyCount++;
+                                    blackCount += imageByte[x + i + (y + j) * imageSize] == 0 ? 1 : 0;
+                                }
                             }
                         }
                     }
@@ -938,8 +979,11 @@ namespace GoImageDetection.Core
                         {
                             if ((i - circleStone.Center.X) * (i - circleStone.Center.X) + (j - circleStone.Center.Y) * (j - circleStone.Center.Y) < circleStone.Radius * circleStone.Radius)
                             {
-                                totalGray += bitmap.GetPixel(i, j).GetBrightness();
-                                totalCount++;
+                                if (i >= 0 && i < bitmap.Width && j >= 0 && j < bitmap.Height)
+                                {
+                                    totalGray += bitmap.GetPixel(i, j).GetBrightness();
+                                    totalCount++;
+                                }
                             }
                         }
                     }
@@ -1002,8 +1046,11 @@ namespace GoImageDetection.Core
                     {
                         if (i * i + j * j < littleRadius * littleRadius)
                         {
-                            totalCount++;
-                            totalGray += bitmap.GetPixel(x + i, y + j).GetBrightness();
+                            if (x + i >= 0 && x + i < bitmap.Width && y + j >= 0 && y + j < bitmap.Height)
+                            {
+                                totalCount++;
+                                totalGray += bitmap.GetPixel(x + i, y + j).GetBrightness();
+                            }
                         }
                     }
                 }
