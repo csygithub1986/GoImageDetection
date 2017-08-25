@@ -21,10 +21,10 @@ namespace GoImageDetection.Core
     public class Detector : IDetect
     {
         double minWidthRate = 0.7;
-        double cannyThreshold = 80;   // 参数5：边缘检测阈值（30~180）
+        double cannyThreshold = 90;   // 参数5：边缘检测阈值（30~180）
         double circleAccumulatorThreshold = 30;       // 参数6：累加器阈值（圆心重合点，越低的时候圆弧就越容易当成圆）
 
-        double circleCannyThresh = 100;    // 圆的边缘检测阈值（30~180）
+        double circleCannyThresh = 90;    // 圆的边缘检测阈值（30~180）
 
         #region 可调参数
 
@@ -67,7 +67,7 @@ namespace GoImageDetection.Core
         {
             this.bitmap = bitmap;
             this.boardSize = boardSize;
-            UMat uimage = InitImage(bitmap);
+            UMat uimage = InitImage(bitmap);return null;
             imageSize = uimage.Cols;
             maxGridWidth = uimage.Size.Width / (boardSize - 1);
             minGridWidth = (int)(uimage.Size.Width / (boardSize - 1) * minWidthRate);
@@ -128,7 +128,7 @@ namespace GoImageDetection.Core
             Image<Bgr, Byte> img = new Image<Bgr, byte>(bitmap);
             //转为灰度级图像
             UMat uimage = new UMat();
-            CvInvoke.CvtColor(img, uimage, ColorConversion.Bgr2Gray);
+            CvInvoke.CvtColor(img, uimage, ColorConversion.Rgb2Gray);
             //use image pyr to remove noise 降噪，为了更准确的做边缘检测
             UMat pyrDown = new UMat();
             CvInvoke.PyrDown(uimage, pyrDown);

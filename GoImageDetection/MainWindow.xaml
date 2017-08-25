@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:GoImageDetection"
         xmlns:emgu="clr-namespace:Emgu.CV.UI;assembly=Emgu.CV.UI"
         mc:Ignorable="d" Background="#888888"
-        Title="MainWindow" Height="700" Width="1600">
+        Title="MainWindow" Height="700" Width="1650">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="160"/>
@@ -142,5 +142,6 @@
             </Grid>
         </GroupBox>
         <TextBox x:Name="txtConsole" HorizontalAlignment="Left" Height="88" Margin="19,55,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="333"/>
+        <Button Content="饱和度测试" HorizontalAlignment="Left" Margin="1567,10,0,0" VerticalAlignment="Top" Width="75" Click="bhd_Click"/>
     </Grid>
 </Window>

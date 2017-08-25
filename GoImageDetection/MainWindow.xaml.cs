@@ -361,5 +361,10 @@ namespace GoImageDetection
         }
         #endregion
 
+        private void bhd_Click(object sender, RoutedEventArgs e)
+        {
+            TestWindow w = new TestWindow(new Bitmap(fileNameTextBox.Text));
+            w.Show();
+        }
     }
 }
