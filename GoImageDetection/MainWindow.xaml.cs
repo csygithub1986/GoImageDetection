@@ -20,6 +20,7 @@ using System.Diagnostics;
 using Emgu.CV.Util;
 using GoImageDetection.Core;
 using System.Drawing;
+using System.Runtime.InteropServices;
 
 namespace GoImageDetection
 {
@@ -365,6 +366,20 @@ namespace GoImageDetection
         {
             TestWindow w = new TestWindow(new Bitmap(fileNameTextBox.Text));
             w.Show();
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            _bitmap = new Bitmap(fileNameTextBox.Text);
+            Image<Bgr, Byte> img = new Image<Bgr, byte>(_bitmap);
+
+
+            GCHandle hObject = GCHandle.Alloc(img.Bytes, GCHandleType.Pinned);
+            IntPtr pObject = hObject.AddrOfPinnedObject();
+            if (hObject.IsAllocated)
+                hObject.Free();
+            Console.WriteLine("aaa");
+            DllImporter.Detect(pObject, img.Width, img.Height, 3);
         }
     }
 }

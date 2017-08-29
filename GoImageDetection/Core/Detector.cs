@@ -45,9 +45,11 @@ namespace GoImageDetection.Core
         public Dictionary<CrossType, List<Point>> CrossPoints;
 
         public UMat cannyEdges;
-        Bitmap bitmap;
+        //Bitmap bitmap;
+        UMat grayImage;
         int boardSize;
-        int imageSize;
+        int imageWidth;
+        int imageHeight;
 
         public PointF[] conors;
         public Point[] allCoordinate;
@@ -65,10 +67,13 @@ namespace GoImageDetection.Core
         /// <returns></returns>
         public int[] Detect(Bitmap bitmap, int boardSize)
         {
-            this.bitmap = bitmap;
+            //this.bitmap = bitmap;
+
             this.boardSize = boardSize;
-            UMat uimage = InitImage(bitmap);return null;
-            imageSize = uimage.Cols;
+            UMat uimage = InitImage(bitmap);
+            //return null;
+            imageWidth = uimage.Cols;
+            imageHeight = uimage.Rows;
             maxGridWidth = uimage.Size.Width / (boardSize - 1);
             minGridWidth = (int)(uimage.Size.Width / (boardSize - 1) * minWidthRate);
             crossDetectLen = minGridWidth / 4;
@@ -87,7 +92,7 @@ namespace GoImageDetection.Core
             DateTime t1 = DateTime.Now;
             CrossPoints = DetectCross(cannyEdges.Bytes, cannyEdges.Cols);
             DateTime t2 = DateTime.Now;
-            Console.WriteLine((t2 - t1).Milliseconds + " ms");
+            Console.WriteLine("DetectCross " + (t2 - t1).TotalMilliseconds + " ms");
 
             //foreach (var item in CrossPoints)
             //{
@@ -101,6 +106,8 @@ namespace GoImageDetection.Core
             PointF directionUp = PointF.Empty;
             PointF directionDown = PointF.Empty;
             conors = FindConor(out directionLeft, out directionRight, out directionUp, out directionDown);
+            DateTime t3 = DateTime.Now;
+            Console.WriteLine("FindConor " + (t3 - t2).TotalMilliseconds + " ms");
             if (conors == null)
             {
                 return null;
@@ -110,13 +117,18 @@ namespace GoImageDetection.Core
             LineSegment2DF[] verticalLines = null;
             GetEvenDevideLines(conors, directionLeft, directionRight, directionUp, directionDown, out horizontalLines, out verticalLines);
             allCoordinate = GetGridCoordinate(horizontalLines, verticalLines);
-
+            DateTime t4 = DateTime.Now;
+            Console.WriteLine("GetGridCoordinate " + (t4 - t3).TotalMilliseconds + " ms");
 
             int[] stones = new int[boardSize * boardSize];
+            byte[] imageByte = cannyEdges.Bytes;//如果直接随机访问cannyEdges.Bytes中的元素，会非常耗时
+            byte[] grayImageData = grayImage.Bytes;
             for (int i = 0; i < stones.Length; i++)
             {
-                stones[i] = FindStone(i);
+                stones[i] = FindStone(i, imageByte, grayImageData);
             }
+            DateTime t5 = DateTime.Now;
+            Console.WriteLine("FindStone " + (t5 - t4).TotalMilliseconds + " ms");
             return stones;
         }
 
@@ -127,13 +139,13 @@ namespace GoImageDetection.Core
         {
             Image<Bgr, Byte> img = new Image<Bgr, byte>(bitmap);
             //转为灰度级图像
-            UMat uimage = new UMat();
-            CvInvoke.CvtColor(img, uimage, ColorConversion.Rgb2Gray);
+            grayImage = new UMat();
+            CvInvoke.CvtColor(img, grayImage, ColorConversion.Rgb2Gray);
             //use image pyr to remove noise 降噪，为了更准确的做边缘检测
             UMat pyrDown = new UMat();
-            CvInvoke.PyrDown(uimage, pyrDown);
-            CvInvoke.PyrUp(pyrDown, uimage);
-            return uimage;
+            CvInvoke.PyrDown(grayImage, pyrDown);
+            CvInvoke.PyrUp(pyrDown, grayImage);
+            return grayImage;
         }
 
         /// <summary>
@@ -914,26 +926,26 @@ namespace GoImageDetection.Core
         /// 找棋子
         /// </summary>
         /// <returns>0:empty，1:black，2:white，-1:错误</returns>
-        private int FindStone(int index)
+        private int FindStone(int index, byte[] cannyBytes, byte[] grayImageData)
         {
             int indexX = index % boardSize;
             int indexY = index / boardSize;
 
             int x = allCoordinate[index].X;
             int y = allCoordinate[index].Y;
-            byte[] imageByte = cannyEdges.Bytes;//如果直接随机访问cannyEdges.Bytes中的元素，会非常耗时
+            //byte[] imageByte = cannyEdges.Bytes;//如果直接随机访问cannyEdges.Bytes中的元素，会非常耗时
             //下面三种方法，可信度从高到低
             #region 先找xy附近25%最大格宽是否有圆，然后圆内的灰度大于平均值（这里简单认为是128，或0.5）则是黑棋，小于则是白棋
             {
                 int minX = x - maxGridWidth / 4;
                 minX = minX < 0 ? 0 : minX;
                 int maxX = x + maxGridWidth / 4;
-                maxX = maxX >= imageSize ? imageSize - 1 : maxX;
+                maxX = maxX >= imageWidth ? imageWidth - 1 : maxX;
 
                 int minY = y - maxGridWidth / 4;
                 minY = minY < 0 ? 0 : minY;
                 int maxY = y + maxGridWidth / 4;
-                maxY = maxY >= imageSize ? imageSize - 1 : maxY;
+                maxY = maxY >= imageHeight ? imageHeight - 1 : maxY;
 
                 CircleF circleStone = new CircleF(PointF.Empty, 0);
                 foreach (var circle in Circles)
@@ -960,10 +972,10 @@ namespace GoImageDetection.Core
                         {
                             if (i * i + j * j < littleRadius * littleRadius)
                             {
-                                if (x + i >= 0 && x + i < bitmap.Width && y + j >= 0 && y + j < bitmap.Height)
+                                if (x + i >= 0 && x + i < imageWidth && y + j >= 0 && y + j < imageHeight)
                                 {
                                     totalCannyCount++;
-                                    blackCount += imageByte[x + i + (y + j) * imageSize] == 0 ? 1 : 0;
+                                    blackCount += cannyBytes[x + i + (y + j) * imageWidth] == 0 ? 1 : 0;
                                 }
                             }
                         }
@@ -990,9 +1002,9 @@ namespace GoImageDetection.Core
                         {
                             if ((i - circleStone.Center.X) * (i - circleStone.Center.X) + (j - circleStone.Center.Y) * (j - circleStone.Center.Y) < circleStone.Radius * circleStone.Radius)
                             {
-                                if (i >= 0 && i < bitmap.Width && j >= 0 && j < bitmap.Height)
+                                if (i >= 0 && i < imageWidth && j >= 0 && j < imageHeight)
                                 {
-                                    totalGray += bitmap.GetPixel(i, j).GetBrightness();
+                                    totalGray += grayImageData[i + j * imageWidth] / 255f;
                                     totalCount++;
                                 }
                             }
@@ -1025,18 +1037,18 @@ namespace GoImageDetection.Core
                 int minX = x - maxGridWidth / 10;
                 minX = minX < 0 ? 0 : minX;
                 int maxX = x + maxGridWidth / 10;
-                maxX = maxX >= imageSize ? imageSize - 1 : maxX;
+                maxX = maxX >= imageWidth ? imageWidth - 1 : maxX;
 
                 int minY = x - maxGridWidth / 10;
                 minY = minY < 0 ? 0 : minY;
                 int maxY = x + maxGridWidth / 10;
-                maxY = maxY >= imageSize ? imageSize - 1 : maxY;
+                maxY = maxY >= imageHeight ? imageHeight - 1 : maxY;
 
                 for (int i = minX; i <= maxX; i++)
                 {
                     for (int j = minY; j <= maxY; j++)
                     {
-                        CrossType type = GetCrossFromCenter(imageSize, imageByte, i, j);
+                        CrossType type = GetCrossFromCenter(imageWidth, cannyBytes, i, j);
                         if (type == CrossType.Center)
                         {
                             Console.Write("  找到十字");
@@ -1060,10 +1072,10 @@ namespace GoImageDetection.Core
                     {
                         if (i * i + j * j < littleRadius * littleRadius)
                         {
-                            if (x + i >= 0 && x + i < bitmap.Width && y + j >= 0 && y + j < bitmap.Height)
+                            if (x + i >= 0 && x + i < imageWidth && y + j >= 0 && y + j < imageHeight)
                             {
                                 totalCount++;
-                                totalGray += bitmap.GetPixel(x + i, y + j).GetBrightness();
+                                totalGray += grayImageData[x + i + (y + j) * imageWidth] / 255f;
                             }
                         }
                     }
@@ -1108,16 +1120,16 @@ namespace GoImageDetection.Core
             }
             double[] rates = new double[4];
             //左
-            IsLineOnDirection(cannyEdges.Cols, cannyEdges.Bytes, x, y, -1, 0);
+            IsLineOnDirection(imageWidth, cannyEdges.Bytes, x, y, -1, 0);
             rates[0] = rate;
             //上
-            IsLineOnDirection(cannyEdges.Cols, cannyEdges.Bytes, x, y, 0, -1);
+            IsLineOnDirection(imageWidth, cannyEdges.Bytes, x, y, 0, -1);
             rates[1] = rate;
             //右
-            IsLineOnDirection(cannyEdges.Cols, cannyEdges.Bytes, x, y, 1, 0);
+            IsLineOnDirection(imageWidth, cannyEdges.Bytes, x, y, 1, 0);
             rates[2] = rate;
             //下
-            IsLineOnDirection(cannyEdges.Cols, cannyEdges.Bytes, x, y, 0, 1);
+            IsLineOnDirection(imageWidth, cannyEdges.Bytes, x, y, 0, 1);
             rates[3] = rate;
             return rates;
         }
