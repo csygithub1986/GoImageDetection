@@ -11,10 +11,26 @@ using namespace cv;
 int BoardSize;
 int ImageWidth;
 int ImageHeight;
+int MaxGridWidth;
+int MinGridWidth;
+int CrossDetectLen;
+
+ circleF Circles[];
+ Dictionary<CrossType, List<Point>> CrossPoints;
+
+ UMat cannyEdges;
+UMat grayImage;
 
 
-int* Detect(unsigned char* src, int w, int h, int channel,int boardSize)
+int* Detect(unsigned char* src, int w, int h, int channel, int boardSize)
 {
+	BoardSize = boardSize;
+	ImageWidth = w;
+	ImageHeight = h;
+	MaxGridWidth = (ImageWidth + ImageHeight) / 2 / (boardSize - 1);
+	MinGridWidth = (int)(MaxGridWidth * MinWidthRate);
+	CrossDetectLen = MinGridWidth / 4;
+
 	int format;
 	switch (channel)
 	{
@@ -33,17 +49,8 @@ int* Detect(unsigned char* src, int w, int h, int channel,int boardSize)
 	}
 	Mat img(h, w, format, src);
 
-	BoardSize = boardSize;
 
-	//Mat uimage = InitImage(bitmap);
-	//return null;
-	ImageWidth = w;
-	ImageHeight = h;
-	maxGridWidth = uimage.Size.Width / (boardSize - 1);
-	minGridWidth = (int)(uimage.Size.Width / (boardSize - 1) * minWidthRate);
-	crossDetectLen = minGridWidth / 4;
-	//crossDetectWidth = crossDetectWidth = crossDetectLen / 4;
-
+	Mat uimage = InitImage(img);
 	Circles = DetectCircle(uimage, boardSize);
 
 
@@ -55,6 +62,21 @@ int* Detect(unsigned char* src, int w, int h, int channel,int boardSize)
 
 	int a[] = { 123 };
 	return a;
+}
+
+/// <summary>
+/// 图形预处理
+/// </summary>
+Mat InitImage(Mat mat)
+{
+	//转为灰度级图像
+	Mat	grayMat;
+	cvtColor(mat, grayMat, COLOR_RGB2GRAY);
+	//use image pyr to remove noise 降噪，为了更准确的做边缘检测
+	Mat pyrDownMat;
+	pyrDown(grayMat, pyrDownMat);
+	pyrUp(pyrDownMat, grayMat);
+	return grayMat;
 }
 
 void  SetConfig(double minWidthRate, double cannyThreshold, double circleAccumulatorThreshold, double circleCannyThresh, double crossFillRate)
