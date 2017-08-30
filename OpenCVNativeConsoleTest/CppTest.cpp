@@ -3,6 +3,14 @@
 typedef map<CrossType, list<Point>> TypePointMap;
 //using namespace cv;
 
+double MinWidthRate = 0.7;
+double CannyThreshold = 90;   // 参数5：边缘检测阈值（30~180）
+double CannyThreshold2 = 90 * 0.6;
+double CircleAccumulatorThreshold = 30;       // 参数6：累加器阈值（圆心重合点，越低的时候圆弧就越容易当成圆）
+double CircleCannyThresh = 90;    // 圆的边缘检测阈值（30~180）
+double CrossFillRate = 0.2; //十字检测
+
+
 int BoardSize;
 int ImageWidth;
 int ImageHeight;
@@ -11,13 +19,12 @@ int MinGridWidth;
 int CrossDetectLen;
 
 //中间变量
-vector<Vec3f> Circles;
+vector<CircleF> Circles;
 map<CrossType, list<Point>> CrossPoints;
 Point2f *Conors;
-
-Mat cannyEdges;
-Mat grayImage;
-
+Mat CannyEdges;
+Mat GrayImage;
+Point *AllCoordinate;
 
 void Detect(unsigned char* src, int w, int h, int channel, int BoardSize, int result[])
 {
@@ -57,20 +64,47 @@ void Detect(unsigned char* src, int w, int h, int channel, int BoardSize, int re
 	Mat	cannyEdges;
 	//第三、四个参数分别为边缘检测阈值和连接阈值（大于第一个作为边界，小于第二个舍弃，介于之间时看该点是否连接着其他边界点）
 	cv::Canny(grayBlurImage, cannyEdges, CannyThreshold, CannyThreshold2);
-	CrossPoints = DetectCross(cannyEdges.data, w, h);
+
+	cv::namedWindow("camera", CV_WINDOW_NORMAL);
+	cv::imshow("camera", img);
+	return;
+	uchar *psrc = (uchar*)cannyEdges.data;
+	uchar *pdst = new uchar[cannyEdges.total()];
+	//for (int i = 0; i < h; i++) //遍历行  
+	//{
+	//	const uchar* p0 = psrc + i*w;
+	//	uchar* p1 = pdst + i*w;
+	//	for (int j = 0; j < w; j++) //遍历列  
+	//	{
+	//		*p1++ = p0[j];
+	//	}
+	//}   //耗时：0.7ms  
+	memcpy(pdst, psrc, cannyEdges.total() * sizeof(uchar));  //耗时：0.5ms  
+
+	CrossPoints = DetectCross(pdst, w, h);
 
 	//2、找角
-	Point2f *directionLeft;
-	Point2f *directionRight;
-	Point2f *directionUp;
-	Point2f *directionDown;
+	Point2f *directionLeft = &Point2f();
+	Point2f *directionRight = &Point2f();
+	Point2f *directionUp = &Point2f();
+	Point2f *directionDown = &Point2f();
 	Conors = FindConor(directionLeft, directionRight, directionUp, directionDown);
 
 	//3、透视修正，计算网格
-	LineSegment2DF *horizontalLines;
-	LineSegment2DF * verticalLines;
-	GetEvenDevideLines(conors, directionLeft, directionRight, directionUp, directionDown, out horizontalLines, out verticalLines);
-	allCoordinate = GetGridCoordinate(horizontalLines, verticalLines);
+	LineSegment2DF *horizontalLines = new LineSegment2DF[BoardSize];
+	LineSegment2DF *verticalLines = new LineSegment2DF[BoardSize];
+	GetEvenDevideLines(Conors, *directionLeft, *directionRight, *directionUp, *directionDown, horizontalLines, verticalLines);
+	AllCoordinate = GetGridCoordinate(horizontalLines, verticalLines);
+
+
+	//4、分析颜色
+	//int[] stones = new int[BoardSize * BoardSize];
+	uchar *imageByte = CannyEdges.data;
+	uchar *grayImageData = GrayImage.data;
+	for (int i = 0; i < GetArrayLen(result); i++)
+	{
+		result[i] = FindStone(i, imageByte, grayImageData);
+	}
 
 	//for (size_t i = 0; i < Circles.size(); i++)
 	//{
@@ -82,7 +116,6 @@ void Detect(unsigned char* src, int w, int h, int channel, int BoardSize, int re
 	//	circle(img, center, radius, Scalar(155, 50, 255), 3, 8, 0);
 	//	//Scalar(55,100,195)参数中G、B、R颜色值的数值，得到想要的颜色  
 	//}
-	result[0] = size;
 }
 
 
@@ -114,16 +147,21 @@ void  SetConfig(double minWidthRate, double cannyThreshold, double cannyThreshol
 /// <summary>
 /// 检测圆
 /// </summary>
-vector<Vec3f> DetectCircle(Mat uimage, int BoardSize)
+vector<CircleF> DetectCircle(Mat uimage, int BoardSize)
 {
 	//棋子最大半径
 	int maxRadius = MaxGridWidth / 2;//棋子最大宽度为格的二分之一									 //棋子最小半径为最大半径*0.7
 	int minRadius = (int)(maxRadius * MinWidthRate);
 	//最小间距为最小直径
 	int minDistance = minRadius * 2;
-	vector<Vec3f> circles;//保存矢量
+	vector<Vec3f> vecs;//保存矢量
 	int dp = 1;//不太懂这个参数
-	HoughCircles(uimage, circles, CV_HOUGH_GRADIENT, dp, minDistance, CircleCannyThresh, CircleAccumulatorThreshold, minRadius, maxRadius);
+	HoughCircles(uimage, vecs, CV_HOUGH_GRADIENT, dp, minDistance, CircleCannyThresh, CircleAccumulatorThreshold, minRadius, maxRadius);
+	vector<CircleF> circles;
+	for each (Vec3f vec in vecs)
+	{
+		circles.push_back(CircleF(Point2f(vec[0], vec[1]), vec[2]));//0,1表示center的x和y，2表示半径
+	}
 	return circles;
 }
 
@@ -400,7 +438,7 @@ CrossType GetCrossFromCenter(int width, uchar imageBytes[], int x, int y)
 /// <param name="x"></param>
 /// <param name="y"></param>
 /// <returns></returns>
-map<CrossType, list<Point>> DetectCross(uchar imageBytes[], int width, int height)
+map<CrossType, list<Point>> DetectCross(uchar *imageBytes, int width, int height)
 {
 	map<CrossType, list<Point>> crossDic;
 	int scanRowCount = height / 7;//最多扫描的行数//TODO 消灭立即数
@@ -415,7 +453,7 @@ map<CrossType, list<Point>> DetectCross(uchar imageBytes[], int width, int heigh
 	{
 		for (int i = CrossDetectLen; i < width - CrossDetectLen; i++)
 		{
-			if (imageBytes[i + j * width] == 255)
+			if (imageBytes[i + j * width] == (uchar)255)
 			{
 				CrossType type = GetCrossFromUp(width, imageBytes, i, j);
 				if (type != None)
@@ -552,7 +590,7 @@ Point2f  *FindConor(Point2f *directionLeft, Point2f *directionRight, Point2f *di
 	//左
 	vector<Point2f> leftPoints;//因为fitline只能vector，这里不用list
 	TypePointMap::iterator iterLeft = CrossPoints.find(Left);
-	if (iterLeft != CrossPoints.end)
+	if (iterLeft != CrossPoints.end())
 	{
 		for each (Point2f p in iterLeft->second)
 		{
@@ -563,13 +601,13 @@ Point2f  *FindConor(Point2f *directionLeft, Point2f *directionRight, Point2f *di
 	{
 		return nullptr;
 	}
-	Point2f *pointOnLineLeft;
+	Point2f *pointOnLineLeft = &Point2f();
 	LineFit(leftPoints, directionLeft, pointOnLineLeft);
 
 	//右
 	vector<Point2f> rightPoints;
 	TypePointMap::iterator iterRight = CrossPoints.find(Right);
-	if (iterRight != CrossPoints.end)
+	if (iterRight != CrossPoints.end())
 	{
 		for each (Point2f p in iterRight->second)
 		{
@@ -580,13 +618,13 @@ Point2f  *FindConor(Point2f *directionLeft, Point2f *directionRight, Point2f *di
 	{
 		return nullptr;
 	}
-	Point2f *pointOnLineRight;
+	Point2f *pointOnLineRight = &Point2f();
 	LineFit(rightPoints, directionRight, pointOnLineRight);
 
 	//上
 	vector<Point2f> upPoints;
 	TypePointMap::iterator iterUp = CrossPoints.find(Up);
-	if (iterUp != CrossPoints.end)
+	if (iterUp != CrossPoints.end())
 	{
 		for each (Point2f p in iterUp->second)
 		{
@@ -594,7 +632,7 @@ Point2f  *FindConor(Point2f *directionLeft, Point2f *directionRight, Point2f *di
 		}
 	}
 	TypePointMap::iterator iterLeftUp = CrossPoints.find(LeftUp);
-	if (iterLeftUp != CrossPoints.end)
+	if (iterLeftUp != CrossPoints.end())
 	{
 		for each (Point2f p in iterLeftUp->second)
 		{
@@ -602,24 +640,24 @@ Point2f  *FindConor(Point2f *directionLeft, Point2f *directionRight, Point2f *di
 		}
 	}
 	TypePointMap::iterator iterRightUp = CrossPoints.find(RightUp);
-	if (iterRightUp != CrossPoints.end)
+	if (iterRightUp != CrossPoints.end())
 	{
 		for each (Point2f p in iterRightUp->second)
 		{
 			upPoints.push_back(Point2f(p.x, p.y));
 		}
 	}
-	if (upPoints.size < 2)
+	if (upPoints.size() < 2)
 	{
 		return nullptr;
 	}
-	Point2f *pointOnLineUp;
+	Point2f *pointOnLineUp = &Point2f();
 	LineFit(upPoints, directionUp, pointOnLineUp);
 
 	//下
 	vector<Point2f> downPoints;
 	TypePointMap::iterator iterDown = CrossPoints.find(Down);
-	if (iterDown != CrossPoints.end)
+	if (iterDown != CrossPoints.end())
 	{
 		for each (Point2f p in iterDown->second)
 		{
@@ -627,7 +665,7 @@ Point2f  *FindConor(Point2f *directionLeft, Point2f *directionRight, Point2f *di
 		}
 	}
 	TypePointMap::iterator iterLeftDown = CrossPoints.find(LeftDown);
-	if (iterLeftDown != CrossPoints.end)
+	if (iterLeftDown != CrossPoints.end())
 	{
 		for each (Point2f p in iterLeftDown->second)
 		{
@@ -635,7 +673,7 @@ Point2f  *FindConor(Point2f *directionLeft, Point2f *directionRight, Point2f *di
 		}
 	}
 	TypePointMap::iterator iterRightDown = CrossPoints.find(RightDown);
-	if (iterRightDown != CrossPoints.end)
+	if (iterRightDown != CrossPoints.end())
 	{
 		for each (Point2f p in iterRightDown->second)
 		{
@@ -646,7 +684,7 @@ Point2f  *FindConor(Point2f *directionLeft, Point2f *directionRight, Point2f *di
 	{
 		return nullptr;
 	}
-	Point2f *pointOnLineDown;
+	Point2f *pointOnLineDown = &Point2f();
 	LineFit(downPoints, directionDown, pointOnLineDown);
 
 	//求交点
@@ -668,7 +706,7 @@ Point2f  *FindConor(Point2f *directionLeft, Point2f *directionRight, Point2f *di
 
 #pragma region 计算Grid点
 //通过四个角，矫正获得等分线
-void GetEvenDevideLines(Point2f *conors, Point2f directionLeft, Point2f directionRight, Point2f directionUp, Point2f directionDown, LineSegment2DF *horizontalLines, LineSegment2DF * verticalLines)
+void GetEvenDevideLines(Point2f *conors, Point2f directionLeft, Point2f directionRight, Point2f directionUp, Point2f directionDown, LineSegment2DF *horizontalLines, LineSegment2DF *verticalLines)
 {
 	Point2f leftUpPoint = conors[0];
 	Point2f rightUpPoint = conors[1];
@@ -680,8 +718,8 @@ void GetEvenDevideLines(Point2f *conors, Point2f directionLeft, Point2f directio
 	Point2f *leftPoints;
 	Point2f *rightPoints;
 
-	horizontalLines = new LineSegment2DF[BoardSize];
-	verticalLines = new LineSegment2DF[BoardSize];
+	//horizontalLines = new LineSegment2DF[BoardSize];
+	//verticalLines = new LineSegment2DF[BoardSize];
 	horizontalLines[0] = LineSegment2DF(leftUpPoint, rightUpPoint);
 	horizontalLines[BoardSize - 1] = LineSegment2DF(leftDownPoint, rightDownPoint);
 	verticalLines[0] = LineSegment2DF(leftUpPoint, leftDownPoint);
@@ -704,16 +742,16 @@ void GetEvenDevideLines(Point2f *conors, Point2f directionLeft, Point2f directio
 		upPoints = new Point2f[BoardSize];
 		for (int i = 0; i < BoardSize; i++)
 		{
-			leftPoints[i] = Point2f();
-			leftPoints[i].x = leftUpPoint.x + (rightUpPoint.x - leftUpPoint.x) * i / (BoardSize - 1);
-			leftPoints[i].y = leftUpPoint.y + (rightUpPoint.y - leftUpPoint.y) * i / (BoardSize - 1);
+			upPoints[i] = Point2f();
+			upPoints[i].x = leftUpPoint.x + (rightUpPoint.x - leftUpPoint.x) * i / (BoardSize - 1);
+			upPoints[i].y = leftUpPoint.y + (rightUpPoint.y - leftUpPoint.y) * i / (BoardSize - 1);
 		}
 		downPoints = new Point2f[BoardSize];
 		for (int i = 0; i < BoardSize; i++)
 		{
-			rightPoints[i] = Point2f();
-			rightPoints[i].x = leftDownPoint.x + (rightDownPoint.x - leftDownPoint.x) * i / (BoardSize - 1);
-			rightPoints[i].y = leftDownPoint.y + (rightDownPoint.y - leftDownPoint.y) * i / (BoardSize - 1);
+			downPoints[i] = Point2f();
+			downPoints[i].x = leftDownPoint.x + (rightDownPoint.x - leftDownPoint.x) * i / (BoardSize - 1);
+			downPoints[i].y = leftDownPoint.y + (rightDownPoint.y - leftDownPoint.y) * i / (BoardSize - 1);
 		}
 		verticalLines = new LineSegment2DF[BoardSize];
 		for (int i = 0; i < BoardSize; i++)
@@ -847,22 +885,231 @@ void GetEvenDevideLines(Point2f *conors, Point2f directionLeft, Point2f directio
 	}
 }
 
-Point[] GetGridCoordinate(LineSegment2DF[] horizontalLines, LineSegment2DF[] verticalLines)
+Point *GetGridCoordinate(LineSegment2DF *horizontalLines, LineSegment2DF *verticalLines)
 {
-	Point[] coordinates = new Point[BoardSize * BoardSize];
+	Point *coordinates = new Point[BoardSize * BoardSize];
 	for (int i = 0; i < BoardSize; i++)
 	{
 		for (int j = 0; j < BoardSize; j++)
 		{
 			Point2f pointf = FindLineCross(verticalLines[i].Direction, verticalLines[i].P1, horizontalLines[j].Direction, horizontalLines[j].P1);
-			coordinates[i + j * BoardSize] = new Point()
-			{
-				X = (int)pointf.x + 1,//因为检测的时候都偏小，这里补偿1像素
-				Y = (int)pointf.y + 1//因为检测的时候都偏小，这里补偿1像素
-			};
+			coordinates[i + j * BoardSize] = Point((int)pointf.x + 1, (int)pointf.y + 1);//因为检测的时候都偏小，这里补偿1像素
 		}
 	}
 	return coordinates;
 }
 
 #pragma endregion
+
+
+//points 只能是vector
+void LineFit(vector<Point2f> points, Point2f *direction, Point2f *pointOnLine)
+{
+	Vec4f line_para;
+	cv::fitLine(points, line_para, cv::DIST_L2, 0, 1e-2, 1e-2);
+	(*direction).x = line_para[0];
+	(*direction).y = line_para[1];
+	(*pointOnLine).x = line_para[2];
+	(*pointOnLine).y = line_para[3];
+}
+
+/// <summary>
+/// 计算直线交点（通过两条线的斜率和点）
+/// </summary>
+/// <param name="direction1"></param>
+/// <param name="pointOnLine1"></param>
+/// <param name="direction2"></param>
+/// <param name="pointOnLine2"></param>
+/// <returns></returns>
+Point2f FindLineCross(Point2f direction1, Point2f pointOnLine1, Point2f direction2, Point2f pointOnLine2)
+{
+	if (direction1.x * direction2.y == direction1.y * direction2.x)//平行
+	{
+		return NULL;
+	}
+	float x, y;
+	x = (direction1.x * direction2.x * (pointOnLine2.y - pointOnLine1.y) + direction1.y * direction2.x * pointOnLine1.x - direction1.x * direction2.y * pointOnLine2.x) / (direction2.x * direction1.y - direction1.x * direction2.y);
+	y = (direction1.y * direction2.y * (pointOnLine2.x - pointOnLine1.x) + direction1.x * direction2.y * pointOnLine1.y - direction1.y * direction2.x * pointOnLine2.y) / (direction2.y * direction1.x - direction1.y * direction2.x);
+	return Point2f(x, y);
+}
+
+/// <summary>
+/// 找棋子
+/// </summary>
+/// <returns>0:empty，1:black，2:white，-1:错误</returns>
+int FindStone(int index, uchar *cannyBytes, uchar *grayImageData)
+{
+	int indexX = index % BoardSize;
+	int indexY = index / BoardSize;
+
+	int x = AllCoordinate[index].x;
+	int y = AllCoordinate[index].y;
+	//下面三种方法，可信度从高到低
+
+#pragma region 先找xy附近25%最大格宽是否有圆，然后圆内的灰度大于平均值（这里简单认为是128，或0.5）则是黑棋，小于则是白棋
+	{
+		int minX = x - MaxGridWidth / 4;
+		minX = minX < 0 ? 0 : minX;
+		int maxX = x + MaxGridWidth / 4;
+		maxX = maxX >= ImageWidth ? ImageWidth - 1 : maxX;
+
+		int minY = y - MaxGridWidth / 4;
+		minY = minY < 0 ? 0 : minY;
+		int maxY = y + MaxGridWidth / 4;
+		maxY = maxY >= ImageHeight ? ImageHeight - 1 : maxY;
+
+		CircleF circleStone = CircleF(Point2f(), 0);
+		for each(CircleF circle in Circles)
+		{
+			//if (index==2)
+			//{
+
+			//}
+			if (circle.Center.x >= minX && circle.Center.x <= maxX && circle.Center.y >= minY && circle.Center.y <= maxY)
+			{
+				circleStone = circle;
+				break;
+			}
+		}
+		if (circleStone.Radius == 0)
+		{
+			//或者以0.25倍最小格宽为半径的圆，百分之99（数值待定）都是黑色，判定为有圆
+			int totalCannyCount = 0;
+			int blackCount = 0;
+			float littleRadius = 0.25f * MinGridWidth;
+			for (int i = (int)(-littleRadius) + 1; i < littleRadius; i++)
+			{
+				for (int j = (int)(-littleRadius) + 1; j < littleRadius; j++)
+				{
+					if (i * i + j * j < littleRadius * littleRadius)
+					{
+						if (x + i >= 0 && x + i < ImageWidth && y + j >= 0 && y + j < ImageHeight)
+						{
+							totalCannyCount++;
+							blackCount += cannyBytes[x + i + (y + j) * ImageWidth] == 0 ? 1 : 0;
+						}
+					}
+				}
+			}
+			if ((float)blackCount / totalCannyCount >= 0.99)
+			{
+				circleStone = CircleF(Point2f(x, y), littleRadius);
+				//Console.Write("无圆但中心空洞   ");
+			}
+		}
+		else
+		{
+			//Console.Write("有圆   ");
+		}
+
+		if (circleStone.Radius != 0)
+		{
+			//求圆内灰度
+			float totalGray = 0;
+			int totalCount = 0;
+			for (int i = (int)(circleStone.Center.x - circleStone.Radius) + 1; i < circleStone.Center.x + circleStone.Radius; i++)
+			{
+				for (int j = (int)(circleStone.Center.y - circleStone.Radius) + 1; j < circleStone.Center.y + circleStone.Radius; j++)
+				{
+					if ((i - circleStone.Center.x) * (i - circleStone.Center.x) + (j - circleStone.Center.y) * (j - circleStone.Center.y) < circleStone.Radius * circleStone.Radius)
+					{
+						if (i >= 0 && i < ImageWidth && j >= 0 && j < ImageHeight)
+						{
+							totalGray += grayImageData[i + j * ImageWidth] / 255.0f;
+							totalCount++;
+						}
+					}
+				}
+			}
+			float averageGray = totalGray / totalCount;
+			if (averageGray > 0.45)
+			{
+				/*Console.Write("  为白" + "  灰度" + averageGray.ToString("F2"));
+				Console.WriteLine("  (" + indexX + "," + indexY + ")");*/
+				return 2;//白
+			}
+			else if (averageGray < 0.45)
+			{
+				/*Console.Write("  为黑" + "  灰度" + averageGray.ToString("F2"));
+				Console.WriteLine("  (" + indexX + "," + indexY + ")");*/
+				return 1;//黑
+			}
+			else
+			{
+				//Console.WriteLine("错误");
+				return -1;//错误
+			}
+		}
+	}
+#pragma endregion
+
+#pragma endregion 再找xy附近10%最大格宽是否有十字，如果有，则为空
+	{
+		int minX = x - MaxGridWidth / 10;
+		minX = minX < 0 ? 0 : minX;
+		int maxX = x + MaxGridWidth / 10;
+		maxX = maxX >= ImageWidth ? ImageWidth - 1 : maxX;
+
+		int minY = x - MaxGridWidth / 10;
+		minY = minY < 0 ? 0 : minY;
+		int maxY = x + MaxGridWidth / 10;
+		maxY = maxY >= ImageHeight ? ImageHeight - 1 : maxY;
+
+		for (int i = minX; i <= maxX; i++)
+		{
+			for (int j = minY; j <= maxY; j++)
+			{
+				CrossType type = GetCrossFromCenter(ImageWidth, cannyBytes, i, j);
+				if (type == Center)
+				{
+					//Console.Write("  找到十字");
+					//Console.WriteLine("  (" + indexX + "," + indexY + ")");
+					return 0;//空
+				}
+			}
+		}
+	}
+#pragma endregion
+
+#pragma endregion 如果既无圆也无十字，最后对0.4倍最小格宽为半径的圆求灰度，如果灰度<0.2或者>0.75（数值待定），之间则为空
+	{
+		float totalGray = 0;
+		int totalCount = 0;
+		float littleRadius = 0.4f * MinGridWidth;
+
+		for (int i = (int)(-littleRadius) + 1; i < littleRadius; i++)
+		{
+			for (int j = (int)(-littleRadius) + 1; j < littleRadius; j++)
+			{
+				if (i * i + j * j < littleRadius * littleRadius)
+				{
+					if (x + i >= 0 && x + i < ImageWidth && y + j >= 0 && y + j < ImageHeight)
+					{
+						totalCount++;
+						totalGray += grayImageData[x + i + (y + j) * ImageWidth] / 255.0f;
+					}
+				}
+			}
+		}
+		float averageGray = totalGray / totalCount;
+		if (averageGray > 0.75)//白的灰度一般在0.6以上
+		{
+			//Console.Write("  强行灰度为白" + "  灰度" + averageGray.ToString("F2"));
+			//Console.WriteLine("  (" + indexX + "," + indexY + ")");
+			return 2;//白
+		}
+		else if (averageGray < 0.15)//黑的灰度一般在0.2以下
+		{
+			//Console.Write("  强行灰度为黑" + "  灰度" + averageGray.ToString("F2"));
+			//Console.WriteLine("  (" + indexX + "," + indexY + ")");
+			return 1;//黑
+		}
+		else
+		{
+			//Console.Write("  强行灰度为空");
+			//Console.WriteLine("  (" + indexX + 1 + "," + indexY + 1 + ")");
+			return 0;//空
+		}
+	}
+#pragma endregion
+}

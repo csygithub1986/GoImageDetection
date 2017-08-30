@@ -713,16 +713,16 @@ namespace GoImageDetection.Core
                 upPoints = new PointF[boardSize];
                 for (int i = 0; i < boardSize; i++)
                 {
-                    leftPoints[i] = new PointF();
-                    leftPoints[i].X = leftUpPoint.X + (rightUpPoint.X - leftUpPoint.X) * i / (boardSize - 1);
-                    leftPoints[i].Y = leftUpPoint.Y + (rightUpPoint.Y - leftUpPoint.Y) * i / (boardSize - 1);
+                    upPoints[i] = new PointF();
+                    upPoints[i].X = leftUpPoint.X + (rightUpPoint.X - leftUpPoint.X) * i / (boardSize - 1);
+                    upPoints[i].Y = leftUpPoint.Y + (rightUpPoint.Y - leftUpPoint.Y) * i / (boardSize - 1);
                 }
                 downPoints = new PointF[boardSize];
                 for (int i = 0; i < boardSize; i++)
                 {
-                    rightPoints[i] = new PointF();
-                    rightPoints[i].X = leftDownPoint.X + (rightDownPoint.X - leftDownPoint.X) * i / (boardSize - 1);
-                    rightPoints[i].Y = leftDownPoint.Y + (rightDownPoint.Y - leftDownPoint.Y) * i / (boardSize - 1);
+                    downPoints[i] = new PointF();
+                    downPoints[i].X = leftDownPoint.X + (rightDownPoint.X - leftDownPoint.X) * i / (boardSize - 1);
+                    downPoints[i].Y = leftDownPoint.Y + (rightDownPoint.Y - leftDownPoint.Y) * i / (boardSize - 1);
                 }
                 verticalLines = new LineSegment2DF[boardSize];
                 for (int i = 0; i < boardSize; i++)

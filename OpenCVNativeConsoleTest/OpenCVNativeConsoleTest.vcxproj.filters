@@ -38,8 +38,5 @@
     <ClCompile Include="CppTest.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="LineMethods.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
   </ItemGroup>
 </Project>

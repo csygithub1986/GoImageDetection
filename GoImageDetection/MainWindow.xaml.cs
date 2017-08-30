@@ -379,11 +379,23 @@ namespace GoImageDetection
             if (hObject.IsAllocated)
                 hObject.Free();
 
-            DllImporter.SetConfig(0.7, 90, 90 * 0.6, 30, 90, 0.2);
+            //DllImporter.SetConfig(0.7, 90, 90 * 0.6, 30, 90, 0.2);
 
-            int[] result = new int[1];
+            int[] result = new int[19 * 19];
             DllImporter.Detect(pObject, img.Width, img.Height, 3, 19, result);
 
+
+            //绘图
+            Mat matFinal = img.Mat;
+            for (int i = 0; i < result.Length; i++)
+            {
+                if (result[i] > 0)
+                {
+                    CvInvoke.Circle(matFinal, detector.allCoordinate[i], detector.minGridWidth / 2, new Bgr(result[i] == 2 ? System.Drawing.Color.Green : System.Drawing.Color.Red).MCvScalar, 5);
+                    //CvInvoke.Circle(matFinal, detector.allCoordinate[i], 5, new Bgr(System.Drawing.Color.DarkGreen ).MCvScalar, 3);
+                }
+            }
+            imageFinal.Image = matFinal;
         }
     }
 }
