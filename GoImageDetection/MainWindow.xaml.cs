@@ -93,6 +93,7 @@ namespace GoImageDetection
 
             detector = new Detector(crossFillRate);
             _bitmap = new Bitmap(fileNameTextBox.Text);//加载图片
+
             int[] finalResult = detector.Detect(_bitmap, 19);//检测，完成后detector中带有Circles和CrossPoints信息
 
             //绘制灰度图
@@ -368,18 +369,21 @@ namespace GoImageDetection
             w.Show();
         }
 
+        //调试C++
         private void Button_Click(object sender, RoutedEventArgs e)
         {
             _bitmap = new Bitmap(fileNameTextBox.Text);
             Image<Bgr, Byte> img = new Image<Bgr, byte>(_bitmap);
-
-
             GCHandle hObject = GCHandle.Alloc(img.Bytes, GCHandleType.Pinned);
             IntPtr pObject = hObject.AddrOfPinnedObject();
             if (hObject.IsAllocated)
                 hObject.Free();
-            Console.WriteLine("aaa");
-            DllImporter.Detect(pObject, img.Width, img.Height, 3);
+
+            DllImporter.SetConfig(0.7, 90, 90 * 0.6, 30, 90, 0.2);
+
+            int[] result = new int[1];
+            DllImporter.Detect(pObject, img.Width, img.Height, 3, 19, result);
+
         }
     }
 }

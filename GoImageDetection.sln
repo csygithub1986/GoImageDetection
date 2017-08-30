@@ -4,6 +4,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 15.0.26228.9
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoImageDetection", "GoImageDetection\GoImageDetection.csproj", "{4A2E5F43-BA0D-4895-8C79-38CA1AB6E7AD}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8A8D7D57-0665-41EA-BFE5-090DEF305E42} = {8A8D7D57-0665-41EA-BFE5-090DEF305E42}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OpenCVNativeConsoleTest", "OpenCVNativeConsoleTest\OpenCVNativeConsoleTest.vcxproj", "{8A8D7D57-0665-41EA-BFE5-090DEF305E42}"
 EndProject

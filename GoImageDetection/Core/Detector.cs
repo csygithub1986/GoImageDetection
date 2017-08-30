@@ -81,11 +81,7 @@ namespace GoImageDetection.Core
 
             Circles = DetectCircle(uimage, boardSize);
 
-            //List<LineSegment2D> horizontalLines;
-            //List<LineSegment2D> verticalLines;
-            //DetectLine(uimage, boardSize, out horizontalLines, out verticalLines);
-            //CrossPoints = CalculateCross(horizontalLines, verticalLines);
-
+            //1、找交点
             cannyEdges = new UMat();
             //第三、四个参数分别为边缘检测阈值和连接阈值（大于第一个作为边界，小于第二个舍弃，介于之间时看该点是否连接着其他边界点）
             CvInvoke.Canny(uimage, cannyEdges, cannyThreshold, cannyThreshold * 0.6);
@@ -94,13 +90,8 @@ namespace GoImageDetection.Core
             DateTime t2 = DateTime.Now;
             Console.WriteLine("DetectCross " + (t2 - t1).TotalMilliseconds + " ms");
 
-            //foreach (var item in CrossPoints)
-            //{
-            //    Console.WriteLine(item.Key + "  " + item.Value.Count());
-            //}
 
-
-            //找交点
+            //2、找角
             PointF directionLeft = PointF.Empty;
             PointF directionRight = PointF.Empty;
             PointF directionUp = PointF.Empty;
@@ -113,6 +104,7 @@ namespace GoImageDetection.Core
                 return null;
             }
 
+            //3、透视修正，计算网格
             LineSegment2DF[] horizontalLines = null;
             LineSegment2DF[] verticalLines = null;
             GetEvenDevideLines(conors, directionLeft, directionRight, directionUp, directionDown, out horizontalLines, out verticalLines);
@@ -120,6 +112,7 @@ namespace GoImageDetection.Core
             DateTime t4 = DateTime.Now;
             Console.WriteLine("GetGridCoordinate " + (t4 - t3).TotalMilliseconds + " ms");
 
+            //4、分析颜色
             int[] stones = new int[boardSize * boardSize];
             byte[] imageByte = cannyEdges.Bytes;//如果直接随机访问cannyEdges.Bytes中的元素，会非常耗时
             byte[] grayImageData = grayImage.Bytes;
@@ -478,7 +471,7 @@ namespace GoImageDetection.Core
             return CrossType.Center;
         }
 
-
+        
         /// <summary>
         /// 对于某点，判断某个方向上是否有直线
         /// </summary>
