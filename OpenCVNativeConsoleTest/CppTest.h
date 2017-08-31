@@ -42,7 +42,7 @@ struct LineSegment2DF
 {
 	Point2f P1;
 	Point2f P2;
-	double Length;
+	//double Length;
 	Point2f Direction;
 
 	LineSegment2DF() {	}
@@ -50,6 +50,8 @@ struct LineSegment2DF
 	{
 		P1 = p1;
 		P2 = p2;
+		Direction.x = (p2.x - p1.x) / sqrt((p2.x - p1.x)*(p2.x - p1.x) + (p2.y - p1.y)*(p2.y - p1.y));
+		Direction.y = (p2.y - p1.y) / sqrt((p2.x - p1.x)*(p2.x - p1.x) + (p2.y - p1.y)*(p2.y - p1.y));
 	}
 };
 
@@ -64,6 +66,9 @@ enum CrossType
 EX void Detect(unsigned char*, int, int, int, int, int[]);
 
 EX void SetConfig(double, double, double, double, double, double);
+
+EX void GetCoordinate(int[], int[]);
+
 
 //ÄÚ²¿º¯Êý
 Mat InitImage(Mat);

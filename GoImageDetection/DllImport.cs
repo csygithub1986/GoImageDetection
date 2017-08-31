@@ -17,5 +17,9 @@ namespace GoImageDetection
         [DllImport(DLLNAME, EntryPoint = "SetConfig", CallingConvention = CallingConvention.Cdecl)]
         public static extern void SetConfig(double minWidthRate, double cannyThreshold, double cannyThreshold2, double circleAccumulatorThreshold, double circleCannyThresh, double crossFillRate);
 
+        [DllImport(DLLNAME, EntryPoint = "GetCoordinate", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void GetCoordinate(int[] x,int[] y);
+
+        
     }
 }

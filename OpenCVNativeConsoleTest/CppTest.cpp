@@ -20,15 +20,15 @@ int CrossDetectLen;
 
 //中间变量
 vector<CircleF> Circles;
-map<CrossType, list<Point>> CrossPoints;
+TypePointMap CrossPoints;
 Point2f *Conors;
 Mat CannyEdges;
-Mat GrayImage;
+Mat GrayBlurImage;
 Point *AllCoordinate;
 
-void Detect(unsigned char* src, int w, int h, int channel, int BoardSize, int result[])
+void Detect(unsigned char* src, int w, int h, int channel, int boardSize, int result[])
 {
-	BoardSize = BoardSize;
+	BoardSize = boardSize;
 	ImageWidth = w;
 	ImageHeight = h;
 	MaxGridWidth = (ImageWidth + ImageHeight) / 2 / (BoardSize - 1);
@@ -54,22 +54,21 @@ void Detect(unsigned char* src, int w, int h, int channel, int BoardSize, int re
 	Mat img(h, w, format, src);
 
 	//初始化，灰度、降噪
-	Mat grayBlurImage = InitImage(img);
+	GrayBlurImage = InitImage(img);
 
 	//找圆
-	Circles = DetectCircle(grayBlurImage, BoardSize);
+	Circles = DetectCircle(GrayBlurImage, BoardSize);
 	int size = Circles.size();
 
 	//1、找交点
-	Mat	cannyEdges;
 	//第三、四个参数分别为边缘检测阈值和连接阈值（大于第一个作为边界，小于第二个舍弃，介于之间时看该点是否连接着其他边界点）
-	cv::Canny(grayBlurImage, cannyEdges, CannyThreshold, CannyThreshold2);
+	cv::Canny(GrayBlurImage, CannyEdges, CannyThreshold, CannyThreshold2);
 
-	cv::namedWindow("camera", CV_WINDOW_NORMAL);
-	cv::imshow("camera", img);
-	return;
-	uchar *psrc = (uchar*)cannyEdges.data;
-	uchar *pdst = new uchar[cannyEdges.total()];
+	/*cv::namedWindow("camera", CV_WINDOW_NORMAL);
+	cv::imshow("camera", cannyEdges);
+	return;*/
+	uchar *psrc = (uchar*)CannyEdges.data;
+	uchar *pdst = new uchar[CannyEdges.total()];
 	//for (int i = 0; i < h; i++) //遍历行  
 	//{
 	//	const uchar* p0 = psrc + i*w;
@@ -79,10 +78,16 @@ void Detect(unsigned char* src, int w, int h, int channel, int BoardSize, int re
 	//		*p1++ = p0[j];
 	//	}
 	//}   //耗时：0.7ms  
-	memcpy(pdst, psrc, cannyEdges.total() * sizeof(uchar));  //耗时：0.5ms  
+	memcpy(pdst, psrc, CannyEdges.total() * sizeof(uchar));  //耗时：0.5ms  
+
+	/*Mat test(h, w, CV_8UC1, pdst);
+	cv::namedWindow("camera1", CV_WINDOW_NORMAL);
+	cv::imshow("camera1", test);
+	return;
+*/
 
 	CrossPoints = DetectCross(pdst, w, h);
-
+	//return;
 	//2、找角
 	Point2f *directionLeft = &Point2f();
 	Point2f *directionRight = &Point2f();
@@ -100,8 +105,8 @@ void Detect(unsigned char* src, int w, int h, int channel, int BoardSize, int re
 	//4、分析颜色
 	//int[] stones = new int[BoardSize * BoardSize];
 	uchar *imageByte = CannyEdges.data;
-	uchar *grayImageData = GrayImage.data;
-	for (int i = 0; i < GetArrayLen(result); i++)
+	uchar *grayImageData = GrayBlurImage.data;
+	for (int i = 0; i < BoardSize*BoardSize; i++)
 	{
 		result[i] = FindStone(i, imageByte, grayImageData);
 	}
@@ -126,7 +131,7 @@ Mat InitImage(Mat mat)
 {
 	//转为灰度级图像
 	Mat	grayMat;
-	cvtColor(mat, grayMat, COLOR_RGB2GRAY);
+	cvtColor(mat, grayMat, COLOR_BGR2GRAY);
 	//use image pyr to remove noise 降噪，为了更准确的做边缘检测
 	Mat pyrDownMat;
 	pyrDown(grayMat, pyrDownMat);//不知道和GaussianBlur有什么区别
@@ -164,6 +169,8 @@ vector<CircleF> DetectCircle(Mat uimage, int BoardSize)
 	}
 	return circles;
 }
+
+bool first = true;
 
 #pragma region CrossDetection
 /// <summary>
@@ -213,29 +220,38 @@ bool IsLineOnDirection(int width, uchar imageBytes[], int x, int y, int directio
 		}
 	}
 
-	uchar *whiteBytes = new  uchar[5 * CrossDetectLen];
+	vector<uchar> whiteBytes(5 * CrossDetectLen);
+	//uchar *whiteBytes = new  uchar[5 * CrossDetectLen];
 	int index = 0;
 	for (int i = iMin; i <= iMax; i++)
 	{
 		for (int j = jMin; j <= jMax; j++)
 		{
-			if (x + i + (y + j) * width >= 0 && x + i + (y + j) * width < getArrayLen(imageBytes))
+			if (x + i + (y + j) * width >= 0 && x + i + (y + j) * width < ImageWidth*ImageHeight)
 			{
 				whiteBytes[index++] = imageBytes[x + i + (y + j) * width];
 			}
 		}
 	}
 	int whiteCount = 0;
+
+	if (first)
+	{
+		Mat test(ImageHeight, width, CV_8UC1, imageBytes);
+		cv::namedWindow("camera1", CV_WINDOW_NORMAL);
+		cv::imshow("camera1", test);
+		first = false;
+	}
+
+
 	for (size_t i = 0; i < 5 * CrossDetectLen; i++)
 	{
-		if (whiteBytes[i] == 255)
+		if (whiteBytes[i] == (uchar)255)
 		{
 			whiteCount++;
 		}
 	}
-
-	double	rate = (double)whiteCount / getArrayLen(whiteBytes);
-	return whiteCount > getArrayLen(whiteBytes) * CrossFillRate;
+	return whiteCount > whiteBytes.size() * CrossFillRate;
 	//}
 	//catch (Exception ex)
 	//{
@@ -243,19 +259,21 @@ bool IsLineOnDirection(int width, uchar imageBytes[], int x, int y, int directio
 	//}
 }
 
-void AddPoint(map<CrossType, list<Point>> crossDic, CrossType type, int x, int y)
+
+
+void AddPoint(TypePointMap &crossDic, CrossType type, int x, int y)
 {
-	map<CrossType, list<Point>>::iterator iter = crossDic.find(type);
+	TypePointMap::iterator iter = crossDic.find(type);
 	if (iter != crossDic.end())
 	{
-		list<Point> pList = iter->second;
-		pList.push_back(Point(x, y));
+		list<Point> *pList = &(iter->second);
+		(*pList).push_back(Point(x, y));
 	}
 	else
 	{
 		list<Point> pList;
 		pList.push_front(Point(x, y));
-		crossDic.insert(map<CrossType, list<Point>>::value_type(type, pList));
+		crossDic.insert(TypePointMap::value_type(type, pList));
 	}
 }
 
@@ -438,9 +456,14 @@ CrossType GetCrossFromCenter(int width, uchar imageBytes[], int x, int y)
 /// <param name="x"></param>
 /// <param name="y"></param>
 /// <returns></returns>
-map<CrossType, list<Point>> DetectCross(uchar *imageBytes, int width, int height)
+TypePointMap DetectCross(uchar *imageBytes, int width, int height)
 {
-	map<CrossType, list<Point>> crossDic;
+	//Mat test(height, width, CV_8UC1, imageBytes);
+	//cv::namedWindow("camera1", CV_WINDOW_NORMAL);
+	//cv::imshow("camera1", test);
+	//return TypePointMap();
+
+	TypePointMap crossDic;
 	int scanRowCount = height / 7;//最多扫描的行数//TODO 消灭立即数
 	int scanColCount = width / 7;
 	//try
@@ -483,7 +506,7 @@ map<CrossType, list<Point>> DetectCross(uchar *imageBytes, int width, int height
 	{
 		for (int i = CrossDetectLen; i < width - CrossDetectLen; i++)//用CrossDetectLen作为两边缓冲区
 		{
-			if (imageBytes[i + j * width] == 255)
+			if (imageBytes[i + j * width] == (uchar)255)
 			{
 				CrossType type = GetCrossFromDown(width, imageBytes, i, j);
 				if (type != None)
@@ -513,7 +536,7 @@ map<CrossType, list<Point>> DetectCross(uchar *imageBytes, int width, int height
 	{
 		for (int j = CrossDetectLen; j < height - CrossDetectLen; j++)
 		{
-			if (imageBytes[i + j * width] == 255)
+			if (imageBytes[i + j * width] == (uchar)255)
 			{
 				CrossType type = GetCrossFromLeft(width, imageBytes, i, j);
 				if (type != None)
@@ -543,7 +566,7 @@ map<CrossType, list<Point>> DetectCross(uchar *imageBytes, int width, int height
 	{
 		for (int j = CrossDetectLen; j < height - CrossDetectLen; j++)
 		{
-			if (imageBytes[i + j * width] == 255)
+			if (imageBytes[i + j * width] == (uchar)255)
 			{
 				CrossType type = GetCrossFromRight(width, imageBytes, i, j);
 				if (type != None)
@@ -753,7 +776,7 @@ void GetEvenDevideLines(Point2f *conors, Point2f directionLeft, Point2f directio
 			downPoints[i].x = leftDownPoint.x + (rightDownPoint.x - leftDownPoint.x) * i / (BoardSize - 1);
 			downPoints[i].y = leftDownPoint.y + (rightDownPoint.y - leftDownPoint.y) * i / (BoardSize - 1);
 		}
-		verticalLines = new LineSegment2DF[BoardSize];
+		//verticalLines = new LineSegment2DF[BoardSize];
 		for (int i = 0; i < BoardSize; i++)
 		{
 			verticalLines[i] = LineSegment2DF(upPoints[i], downPoints[i]);
@@ -775,7 +798,7 @@ void GetEvenDevideLines(Point2f *conors, Point2f directionLeft, Point2f directio
 			rightPoints[i].x = rightUpPoint.x + (rightDownPoint.x - rightUpPoint.x) * i / (BoardSize - 1);
 			rightPoints[i].y = rightUpPoint.y + (rightDownPoint.y - rightUpPoint.y) * i / (BoardSize - 1);
 		}
-		horizontalLines = new LineSegment2DF[BoardSize];
+		//horizontalLines = new LineSegment2DF[BoardSize];
 		for (int i = 0; i < BoardSize; i++)
 		{
 			horizontalLines[i] = LineSegment2DF(leftPoints[i], rightPoints[i]);
@@ -1112,4 +1135,15 @@ int FindStone(int index, uchar *cannyBytes, uchar *grayImageData)
 		}
 	}
 #pragma endregion
+
 }
+
+void GetCoordinate(int x[], int y[])
+{
+	for (size_t i = 0; i < BoardSize*BoardSize; i++)
+	{
+		x[i] = AllCoordinate[i].x;
+		y[i] = AllCoordinate[i].y;
+	}
+}
+

@@ -373,7 +373,7 @@ namespace GoImageDetection
         private void Button_Click(object sender, RoutedEventArgs e)
         {
             _bitmap = new Bitmap(fileNameTextBox.Text);
-            Image<Bgr, Byte> img = new Image<Bgr, byte>(_bitmap);
+            Image<Bgr, Byte> img = new Image<Bgr, byte>(_bitmap);//mat默认是bgr，不是rgb
             GCHandle hObject = GCHandle.Alloc(img.Bytes, GCHandleType.Pinned);
             IntPtr pObject = hObject.AddrOfPinnedObject();
             if (hObject.IsAllocated)
@@ -382,16 +382,18 @@ namespace GoImageDetection
             //DllImporter.SetConfig(0.7, 90, 90 * 0.6, 30, 90, 0.2);
 
             int[] result = new int[19 * 19];
-            DllImporter.Detect(pObject, img.Width, img.Height, 3, 19, result);
+            int[] coorX = new int[19 * 19];
+            int[] coorY = new int[19 * 19];
+            DllImporter.Detect(pObject, img.Width, img.Height, 3, 19, result);//
 
-
+            DllImporter.GetCoordinate(coorX, coorY);
             //绘图
             Mat matFinal = img.Mat;
             for (int i = 0; i < result.Length; i++)
             {
                 if (result[i] > 0)
                 {
-                    CvInvoke.Circle(matFinal, detector.allCoordinate[i], detector.minGridWidth / 2, new Bgr(result[i] == 2 ? System.Drawing.Color.Green : System.Drawing.Color.Red).MCvScalar, 5);
+                    CvInvoke.Circle(matFinal, new System.Drawing.Point(coorX[i], coorY[i]), img.Width / 30, new Bgr(result[i] == 2 ? System.Drawing.Color.Green : System.Drawing.Color.Red).MCvScalar, 5);
                     //CvInvoke.Circle(matFinal, detector.allCoordinate[i], 5, new Bgr(System.Drawing.Color.DarkGreen ).MCvScalar, 3);
                 }
             }
