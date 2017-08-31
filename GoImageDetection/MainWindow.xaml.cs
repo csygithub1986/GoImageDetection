@@ -94,7 +94,11 @@ namespace GoImageDetection
             detector = new Detector(crossFillRate);
             _bitmap = new Bitmap(fileNameTextBox.Text);//加载图片
 
-            int[] finalResult = detector.Detect(_bitmap, 19);//检测，完成后detector中带有Circles和CrossPoints信息
+            DateTime t1 = DateTime.Now;
+            int[] finalResult = detector.Detect(_bitmap, 19);//检测，完成后detector中带有Circles和CrossPoints信息  //用时700多毫秒
+            DateTime t2 = DateTime.Now;
+            double t = (t2 - t1).TotalMilliseconds;
+
 
             //绘制灰度图
             //Image<Bgr, Byte> img = new Image<Bgr, byte>(bitmap);
@@ -384,7 +388,10 @@ namespace GoImageDetection
             int[] result = new int[19 * 19];
             int[] coorX = new int[19 * 19];
             int[] coorY = new int[19 * 19];
-            DllImporter.Detect(pObject, img.Width, img.Height, 3, 19, result);//
+            DateTime t1 = DateTime.Now;
+            DllImporter.Detect(pObject, img.Width, img.Height, 3, 19, result);//用时17秒
+            DateTime t2 = DateTime.Now;
+            double t = (t2 - t1).TotalMilliseconds;
 
             DllImporter.GetCoordinate(coorX, coorY);
             //绘图

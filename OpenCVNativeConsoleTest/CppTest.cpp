@@ -69,15 +69,6 @@ void Detect(unsigned char* src, int w, int h, int channel, int boardSize, int re
 	return;*/
 	uchar *psrc = (uchar*)CannyEdges.data;
 	uchar *pdst = new uchar[CannyEdges.total()];
-	//for (int i = 0; i < h; i++) //遍历行  
-	//{
-	//	const uchar* p0 = psrc + i*w;
-	//	uchar* p1 = pdst + i*w;
-	//	for (int j = 0; j < w; j++) //遍历列  
-	//	{
-	//		*p1++ = p0[j];
-	//	}
-	//}   //耗时：0.7ms  
 	memcpy(pdst, psrc, CannyEdges.total() * sizeof(uchar));  //耗时：0.5ms  
 
 	/*Mat test(h, w, CV_8UC1, pdst);
@@ -104,11 +95,13 @@ void Detect(unsigned char* src, int w, int h, int channel, int boardSize, int re
 
 	//4、分析颜色
 	//int[] stones = new int[BoardSize * BoardSize];
-	uchar *imageByte = CannyEdges.data;
+	//uchar *imageByte = CannyEdges.data;
 	uchar *grayImageData = GrayBlurImage.data;
+	uchar *pdst2 = new uchar[GrayBlurImage.total()];
+	memcpy(pdst2, grayImageData, GrayBlurImage.total() * sizeof(uchar)); 
 	for (int i = 0; i < BoardSize*BoardSize; i++)
 	{
-		result[i] = FindStone(i, imageByte, grayImageData);
+		result[i] = FindStone(i, pdst, pdst2);
 	}
 
 	//for (size_t i = 0; i < Circles.size(); i++)
@@ -169,8 +162,6 @@ vector<CircleF> DetectCircle(Mat uimage, int BoardSize)
 	}
 	return circles;
 }
-
-bool first = true;
 
 #pragma region CrossDetection
 /// <summary>
@@ -234,15 +225,6 @@ bool IsLineOnDirection(int width, uchar imageBytes[], int x, int y, int directio
 		}
 	}
 	int whiteCount = 0;
-
-	if (first)
-	{
-		Mat test(ImageHeight, width, CV_8UC1, imageBytes);
-		cv::namedWindow("camera1", CV_WINDOW_NORMAL);
-		cv::imshow("camera1", test);
-		first = false;
-	}
-
 
 	for (size_t i = 0; i < 5 * CrossDetectLen; i++)
 	{
